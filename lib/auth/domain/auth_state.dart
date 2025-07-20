@@ -1,11 +1,17 @@
-// auth/domain/auth_state.dart
-sealed class AuthState {}
+import 'package:firebase_auth/firebase_auth.dart';
+
+abstract class AuthState {}
 
 class AuthLoading extends AuthState {}
 
 class Authenticated extends AuthState {
-  final String uid;
-  Authenticated(this.uid);
+  final User user;
+  Authenticated(this.user);
+}
+
+class IncompleteProfile extends AuthState {
+  final User user;
+  IncompleteProfile(this.user);
 }
 
 class Unauthenticated extends AuthState {}

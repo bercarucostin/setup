@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="100px" height="63px" viewBox="0 0 100 63" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <title>Group 21</title>
+    <g id="Page-1" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+        <g id="Group-21" transform="translate(2.000000, 2.000000)" stroke="#E2B438" stroke-width="3.456">
+            <line x1="48" y1="0" x2="48" y2="10.2857143" id="Line-5" stroke-linecap="round" stroke-linejoin="round"></line>
+            <line x1="14.5714286" y1="59.1428571" x2="79.7142857" y2="59.1428571" id="Line-5" stroke-linecap="round" stroke-linejoin="round"></line>
+            <path d="M48,18.8708571 C54.1037799,18.8708571 59.6363992,21.2517895 63.666564,24.9940853 C67.7286286,28.7660025 70.272,33.9282547 70.272,39.4285714 L70.272,42.8434286 L25.728,42.8434286 L25.728,39.4285714 C25.728,33.9282547 28.2713714,28.7660025 32.333436,24.9940853 C36.3636008,21.2517895 41.8962201,18.8708571 48,18.8708571 Z" id="Oval"></path>
+            <line x1="8.57142857" y1="51.4285714" x2="85.7142857" y2="51.4285714" id="Line-5" stroke-linecap="round" stroke-linejoin="round"></line>
+            <line x1="72" y1="8.57142857" x2="65.9390847" y2="14.6323438" id="Line-5" stroke-linecap="round" stroke-linejoin="round"></line>
+            <line x1="24" y1="8.57142857" x2="30.0609153" y2="14.6323438" id="Line-5" stroke-linecap="round" stroke-linejoin="round" transform="translate(27.030458, 11.601886) rotate(0.000000) translate(-27.030458, -11.601886) "></line>
+            <line x1="83.9965297" y1="25.7019023" x2="75.5915525" y2="27.3828977" id="Line-5" stroke-linecap="round" stroke-linejoin="round" transform="translate(79.794041, 26.542400) rotate(-8.690068) translate(-79.794041, -26.542400) "></line>
+            <line x1="12.0034703" y1="25.7019023" x2="20.4084475" y2="27.3828977" id="Line-5" stroke-linecap="round" stroke-linejoin="round" transform="translate(16.205959, 26.542400) rotate(8.690068) translate(-16.205959, -26.542400) "></line>
+            <line x1="0" y1="42.8571429" x2="96" y2="42.8571429" id="Line-5" stroke-linecap="round" stroke-linejoin="round"></line>
+        </g>
+    </g>
+</svg>

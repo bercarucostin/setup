@@ -33,8 +33,12 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
     final authState = ref.watch(authControllerProvider);
 
     ref.listen<AuthState>(authControllerProvider, (previous, next) {
-      if (next is Authenticated) {
-        context.go('/'); // Redirect to main page
+      if (next is IncompleteProfile) {
+        context.go('/complete-profile');
+        return;
+      } else if (next is Authenticated) {
+        context.go('/');
+        return;
       }
     });
 

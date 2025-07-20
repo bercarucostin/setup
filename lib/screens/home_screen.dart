@@ -30,16 +30,25 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          'Setup',
-          style: TextStyle(
-            fontFamily: 'Montserrat',
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        leading: Padding(
-          padding: const EdgeInsets.all(8.0),
-          child: SvgPicture.asset('assets/icons/logo.svg', height: 30),
+        centerTitle: true,
+        title: Stack(
+          alignment: Alignment.center,
+          children: [
+            const Text(
+              'Setup',
+              style: TextStyle(
+                fontFamily: 'Montserrat',
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Padding(
+                padding: const EdgeInsets.only(left: 15.0),
+                child: SvgPicture.asset('assets/icons/logo.svg', height: 30),
+              ),
+            ),
+          ],
         ),
       ),
       body: IndexedStack(index: _selectedIndex, children: _pages),

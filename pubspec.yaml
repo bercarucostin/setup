@@ -14,11 +14,13 @@ dependencies:
   go_router: ^16.0.0
   font_awesome_flutter: ^10.8.0
   dio: ^5.3.0
-  firebase_core: ^3.15.1
+  firebase_core: ^3.0.0
   firebase_auth: ^5.6.2
   flutter_svg: ^2.0.10
   google_sign_in: 6.3.0
   fl_chart: ^1.0.0
+  cloud_firestore: ^5.6.11
+  intl: ^0.18.1
   
 
 

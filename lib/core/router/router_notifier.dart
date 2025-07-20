@@ -6,22 +6,33 @@ import '../../auth/domain/auth_state.dart';
 import 'package:go_router/go_router.dart';
 
 class RouterNotifier extends ChangeNotifier {
-  RouterNotifier(this.ref) {
-    ref.listen<AuthState>(authControllerProvider, (_, __) {
-      notifyListeners();
-    });
-  }
-
   final Ref ref;
+
+  RouterNotifier(this.ref) {
+    ref.listen<AuthState>(authControllerProvider, (_, __) => notifyListeners());
+  }
 
   String? redirect(BuildContext context, GoRouterState state) {
     final authState = ref.read(authControllerProvider);
-    final isAuth = authState is Authenticated;
-    final isAuthPage =
-        state.fullPath == '/login' || state.fullPath == '/signup';
+    final location = state.uri.toString();
 
-    if (!isAuth && !isAuthPage) return '/login';
-    if (isAuth && isAuthPage) return '/';
+    final isLoggingIn = location == '/login' || location == '/signup';
+    final isCompletingProfile =
+        location.startsWith('/complete-profile') ||
+        location.startsWith('/chronotype') ||
+        location.startsWith('/sleep-schedule');
+
+    if (authState is Unauthenticated && !isLoggingIn) {
+      return '/login';
+    }
+
+    if (authState is IncompleteProfile && !isCompletingProfile) {
+      return '/complete-profile';
+    }
+
+    if (authState is Authenticated && isLoggingIn) {
+      return '/';
+    }
 
     return null;
   }

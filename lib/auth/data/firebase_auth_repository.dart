@@ -9,11 +9,12 @@ class FirebaseAuthRepository {
 
   User? get currentUser => _firebaseAuth.currentUser;
 
-  Future<void> signUp({required String email, required String password}) async {
-    await _firebaseAuth.createUserWithEmailAndPassword(
+  Future<User> signUp({required String email, required String password}) async {
+    final credential = await _firebaseAuth.createUserWithEmailAndPassword(
       email: email,
       password: password,
     );
+    return credential.user!;
   }
 
   Future<void> signIn({required String email, required String password}) async {
@@ -28,24 +29,19 @@ class FirebaseAuthRepository {
     await GoogleSignIn().signOut();
   }
 
-  Future<UserCredential?> signInWithGoogle() async {
+  Future<User?> signInWithGoogle() async {
     try {
-      final GoogleSignIn googleSignIn = GoogleSignIn(
-        scopes: ['email', 'https://www.googleapis.com/auth/userinfo.profile'],
-      );
+      final googleUser = await GoogleSignIn().signIn();
+      if (googleUser == null) return null;
 
-      final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
-      if (googleUser == null) return null; // user cancelled
-
-      final GoogleSignInAuthentication googleAuth =
-          await googleUser.authentication;
-
+      final googleAuth = await googleUser.authentication;
       final credential = GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
       );
 
-      return await _firebaseAuth.signInWithCredential(credential);
+      final result = await _firebaseAuth.signInWithCredential(credential);
+      return result.user;
     } catch (e) {
       print('Google Sign-In error: $e');
       rethrow;
