@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../viewmodels/energy_view_model.dart';
+import '../models/user_feedback.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({Key? key}) : super(key: key);
@@ -23,10 +24,10 @@ class _MainScreenState extends State<MainScreen> {
     final vm = Provider.of<EnergyViewModel>(context, listen: false);
     vm.fetchEnergyModel(userId).then((_) {
       vm.computeEnergyPrediction(); // Populate the predictedEnergy list
-    }).catchError((error) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error fetching EnergyModel: $error')),
-      );
+      // }).catchError((error) {
+      //   ScaffoldMessenger.of(context).showSnackBar(
+      //     SnackBar(content: Text('Error fetching EnergyModel: $error')),
+      //   );
     });
   }
 
@@ -99,6 +100,14 @@ class _MainScreenState extends State<MainScreen> {
 
                 // If energy is provided, update the model
                 if (energy != null) {
+                  final feedback = UserFeedback(
+                    userId: userId,
+                    timestamp: DateTime.now(),
+                    type: 'actual_energy',
+                    value: energy,
+                  );
+                  await feedback
+                      .saveToFirestore(); // Save feedback to Firestore
                   await vm.updateModel(hour, energy, userId);
                   vm.computeEnergyPrediction(); // Recompute predictions after update
                 }

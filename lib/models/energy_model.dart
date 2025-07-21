@@ -1,13 +1,13 @@
 import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
-
-import '../utils/event.dart';
+import 'user_feedback.dart';
+import 'event.dart';
 
 class EnergyModel {
   int wakeTime;
   int hoursSlept;
   num circadianPeak;
-  double SPrev;
+  double sPrev;
   double wS;
   double wC;
   num tau0;
@@ -22,7 +22,7 @@ class EnergyModel {
     required this.wakeTime,
     required this.hoursSlept,
     required this.circadianPeak,
-    required this.SPrev,
+    required this.sPrev,
     required this.wS,
     required this.wC,
     required this.tau0,
@@ -39,7 +39,7 @@ class EnergyModel {
       wakeTime: data['wakeTime'],
       hoursSlept: data['hoursSlept'],
       circadianPeak: data['circadianPeak'],
-      SPrev: data['SPrev'],
+      sPrev: data['sPrev'],
       wS: data['wS'],
       wC: data['wC'],
       tau0: data['tau0'],
@@ -82,7 +82,7 @@ class EnergyModel {
       'wakeTime': wakeTime,
       'hoursSlept': hoursSlept,
       'circadian_peak': circadianPeak,
-      'SPrev': SPrev,
+      'sPrev': sPrev,
       'w_S': wS,
       'w_C': wC,
       'tau_0': tau0,
@@ -94,7 +94,60 @@ class EnergyModel {
     };
   }
 
-  double _computeS0() => SPrev * exp(-hoursSlept / tauSleep);
+  Future<void> _updateWakeTime(String userId) async {
+    // Fetch today's date range
+    final today = DateTime.now();
+    final startOfDay = DateTime(today.year, today.month, today.day);
+    final endOfDay = DateTime(today.year, today.month, today.day, 23, 59, 59);
+
+    // Fetch the latest 'wake_time' feedback
+    QuerySnapshot wakeTimeSnapshot = await FirebaseFirestore.instance
+        .collection('Feedback')
+        .where('userId', isEqualTo: userId)
+        .where('timestamp',
+            isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
+        .where('timestamp', isLessThanOrEqualTo: Timestamp.fromDate(endOfDay))
+        .where('type', isEqualTo: 'wake_time')
+        .orderBy('timestamp', descending: true)
+        .limit(1)
+        .get();
+
+    if (wakeTimeSnapshot.docs.isNotEmpty) {
+      UserFeedback latestWakeTimeFeedback = UserFeedback.fromFirestore(
+          wakeTimeSnapshot.docs.first.data() as Map<String, dynamic>);
+      wakeTime = latestWakeTimeFeedback.value
+          .toInt(); // Update wakeTime if feedback exists
+    }
+  }
+
+  Future<void> _updateHoursSlept(String userId) async {
+    // Fetch today's date range
+    final today = DateTime.now();
+    final startOfDay = DateTime(today.year, today.month, today.day);
+    final endOfDay = DateTime(today.year, today.month, today.day, 23, 59, 59);
+
+    // Fetch the latest 'sleep_quality' feedback
+    QuerySnapshot sleepQualitySnapshot = await FirebaseFirestore.instance
+        .collection('Feedback')
+        .where('userId', isEqualTo: userId)
+        .where('timestamp',
+            isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
+        .where('timestamp', isLessThanOrEqualTo: Timestamp.fromDate(endOfDay))
+        .where('type', isEqualTo: 'sleep_quality')
+        .orderBy('timestamp', descending: true)
+        .limit(1)
+        .get();
+
+    if (sleepQualitySnapshot.docs.isNotEmpty) {
+      UserFeedback latestSleepQualityFeedback = UserFeedback.fromFirestore(
+          sleepQualitySnapshot.docs.first.data() as Map<String, dynamic>);
+      int sleepQuality = latestSleepQualityFeedback.value
+          .toInt(); // Update wakeTime if feedback exists
+      hoursSlept = (4 + (sleepQuality - 1) * (5 / 9)).toInt();
+    }
+  }
+
+  double _computeS0() => sPrev * exp(-hoursSlept / tauSleep);
 
   double _computeS(int hour) {
     int tAwake = max(hour - wakeTime, 0);
@@ -116,11 +169,13 @@ class EnergyModel {
   }
 
   Future<void> update(int hour, double actualEnergy, String userId) async {
+    await _updateWakeTime(userId);
+    await _updateHoursSlept(userId);
     double S = _computeS(hour);
     double C = _computeC(hour);
-    double EPred = predict(hour, []);
+    double ePred = predict(hour, []);
 
-    double rawPred = (EPred / 100) * 2 - 1;
+    double rawPred = (ePred / 100) * 2 - 1;
     double rawActual = (actualEnergy / 100) * 2 - 1;
     double error = rawPred - rawActual;
 
