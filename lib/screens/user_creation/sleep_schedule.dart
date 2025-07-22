@@ -16,10 +16,13 @@ class _SleepScheduleScreenState extends ConsumerState<SleepScheduleScreen> {
   TimeOfDay? _bedTime;
   bool _submitting = false;
 
-  Future<void> _pickTime({required bool isWake}) async {
+  Future<void> _pickTime({
+    required bool isWake,
+    required TimeOfDay initialTime,
+  }) async {
     final picked = await showTimePicker(
       context: context,
-      initialTime: TimeOfDay(hour: 7, minute: 0),
+      initialTime: initialTime,
       helpText: isWake ? 'Select Wake Time' : 'Select Bed Time',
     );
 
@@ -92,7 +95,11 @@ class _SleepScheduleScreenState extends ConsumerState<SleepScheduleScreen> {
               label: 'When do you typically wake up?',
               icon: Icons.wb_sunny_outlined,
               time: _wakeTime,
-              onTap: () => _pickTime(isWake: true),
+              onTap:
+                  () => _pickTime(
+                    isWake: true,
+                    initialTime: TimeOfDay(hour: 7, minute: 0),
+                  ),
               theme: Theme.of(context),
             ),
             const SizedBox(height: 24),
@@ -100,7 +107,11 @@ class _SleepScheduleScreenState extends ConsumerState<SleepScheduleScreen> {
               label: 'When do you typically go to bed?',
               icon: Icons.bedtime_outlined,
               time: _bedTime,
-              onTap: () => _pickTime(isWake: false),
+              onTap:
+                  () => _pickTime(
+                    isWake: false,
+                    initialTime: TimeOfDay(hour: 23, minute: 0),
+                  ),
               theme: Theme.of(context),
             ),
             const SizedBox(
