@@ -159,23 +159,23 @@ class _CompleteProfileScreenState extends ConsumerState<CompleteProfileScreen> {
                     ),
                     items: const [
                       DropdownMenuItem(
-                        value: 'energy',
+                        value: 'Energy',
                         child: Text('Improve my daily energy levels'),
                       ),
                       DropdownMenuItem(
-                        value: 'sleep',
+                        value: 'Sleep',
                         child: Text('Optimize my sleep and recovery'),
                       ),
                       DropdownMenuItem(
-                        value: 'rhythm',
+                        value: 'Rhythm',
                         child: Text('Understand my personal rhythm'),
                       ),
                       DropdownMenuItem(
-                        value: 'productivity',
+                        value: 'Productivity',
                         child: Text('Boost productivity during peak hours'),
                       ),
                       DropdownMenuItem(
-                        value: 'curious',
+                        value: 'Curious',
                         child: Text('Just curious to explore'),
                       ),
                     ],
