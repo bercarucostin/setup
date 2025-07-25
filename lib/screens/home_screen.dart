@@ -13,17 +13,26 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
 
-  final List<Widget> _pages = [
-    // Replace with your actual pages/screens
-    InsightsScreen(),
-    Center(child: Text('Add Event', style: TextStyle(fontSize: 24))),
-    ProfileScreen(),
-  ];
-
   void _onNavTap(int index) {
     setState(() {
       _selectedIndex = index;
     });
+  }
+
+  /// Lazy build pages instead of pre-building them.
+  Widget _buildPage(int index) {
+    switch (index) {
+      case 0:
+        return const InsightsScreen();
+      case 1:
+        return const Center(
+          child: Text('Add Event', style: TextStyle(fontSize: 24)),
+        );
+      case 2:
+        return const ProfileScreen();
+      default:
+        return const SizedBox.shrink();
+    }
   }
 
   @override
@@ -51,7 +60,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
       ),
-      body: IndexedStack(index: _selectedIndex, children: _pages),
+      body: _buildPage(_selectedIndex),
       bottomNavigationBar: Container(
         height: 60,
         margin: const EdgeInsets.only(bottom: 24, left: 30, right: 30),
