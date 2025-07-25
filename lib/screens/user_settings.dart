@@ -20,10 +20,21 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
   String? _bedTime;
   String? _goal;
 
+  bool _dataLoaded = false;
+
   @override
   void initState() {
     super.initState();
-    _loadUserData();
+    //_loadUserData();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_dataLoaded) {
+      _dataLoaded = true;
+      _loadUserData();
+    }
   }
 
   Future<void> _loadUserData() async {
