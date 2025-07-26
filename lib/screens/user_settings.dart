@@ -25,26 +25,36 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
   @override
   void initState() {
     super.initState();
-    //_loadUserData();
+    _loadUserData();
   }
 
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (!_dataLoaded) {
-      _dataLoaded = true;
-      _loadUserData();
-    }
-  }
+  // @override
+  // void didChangeDependencies() {
+  //   super.didChangeDependencies();
+  //   if (!_dataLoaded) {
+  //     _dataLoaded = true;
+  //     _loadUserData();
+  //   }
+  // }
 
   Future<void> _loadUserData() async {
-    final user = ref.read(firebaseUserProvider);
+    final asyncUser = ref.read(authStateChangesProvider);
+    final user = asyncUser.value;
+    print('loadData');
+    print(user);
     if (user == null) return;
+
+    // Ensure the token is fresh so Firestore security rules see the user
+    await user.getIdToken(true);
+    await user.reload();
+
     final doc =
         await FirebaseFirestore.instance
             .collection('users')
             .doc(user.uid)
             .get();
+
+    print(doc);
     final data = doc.data();
     if (data != null) {
       setState(() {
@@ -230,8 +240,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
 
   @override
   Widget build(BuildContext context) {
-    final user = ref.watch(firebaseUserProvider);
-    final displayName = user?.displayName ?? 'Guest';
+    final asyncUser = ref.watch(authStateChangesProvider);
+    final displayName = asyncUser.value?.displayName ?? 'Guest';
 
     final titles = ['Account Settings', 'Manage Subscription', 'Feedback'];
     final icons = [Icons.person, Icons.subscriptions, Icons.feedback];

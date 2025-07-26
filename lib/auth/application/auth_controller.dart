@@ -35,7 +35,10 @@ class AuthController extends Notifier<AuthState> {
         return;
       }
 
-      state = AuthLoading(); // prevent flash of UI while checking Firestore
+      state = AuthLoading();
+
+      // Ensure the user token is refreshed before accessing Firestore
+      await user.getIdToken(true);
 
       final doc =
           await FirebaseFirestore.instance
@@ -52,6 +55,7 @@ class AuthController extends Notifier<AuthState> {
         state = IncompleteProfile(user);
       }
     });
+
     // Cancel stream when provider is disposed
     ref.onDispose(() {
       _authSub.cancel();
@@ -65,7 +69,10 @@ class AuthController extends Notifier<AuthState> {
     try {
       await _authRepository.signIn(email: email, password: password);
       final user = _authRepository.currentUser;
-      if (user != null) state = _mapUserToState(user);
+      if (user != null) {
+        await user.getIdToken(true); // ensure token is ready
+        state = _mapUserToState(user);
+      }
     } catch (e) {
       state = AuthError(_handleFirebaseError(e));
     }
@@ -74,14 +81,26 @@ class AuthController extends Notifier<AuthState> {
   Future<void> signUp(String email, String password) async {
     final user = await _authRepository.signUp(email: email, password: password);
 
-    final doc =
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .get();
+    // Refresh token to ensure Firestore uses a valid token
+    await user.getIdToken(true);
 
+    final userDoc = FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid);
+
+    // Ensure the document exists
+    final snapshot = await userDoc.get();
+    if (!snapshot.exists) {
+      await userDoc.set({
+        'email': user.email,
+        'hasCompletedProfile': false,
+      }, SetOptions(merge: true));
+    }
+
+    // Now safely check the document
+    final updatedDoc = await userDoc.get();
     final hasCompletedProfile =
-        doc.exists && doc.data()?['hasCompletedProfile'] == true;
+        updatedDoc.exists && updatedDoc.data()?['hasCompletedProfile'] == true;
 
     if (hasCompletedProfile) {
       state = Authenticated(user);
@@ -102,6 +121,8 @@ class AuthController extends Notifier<AuthState> {
       return;
     }
 
+    await user.getIdToken(true);
+
     final doc =
         await FirebaseFirestore.instance
             .collection('users')
@@ -121,7 +142,6 @@ class AuthController extends Notifier<AuthState> {
   Stream<AuthState> get stream =>
       _authRepository.authStateChanges.map(_mapUserToState);
 
-  // Maps Firebase user object to AuthState
   AuthState _mapUserToState(User? user) {
     if (user == null) return Unauthenticated();
     return (user.displayName == null || user.displayName!.isEmpty)
