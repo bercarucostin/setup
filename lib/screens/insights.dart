@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/material.dart';
 import 'package:setup/widgets/chart.dart';
+import 'package:setup/auth/data/firebase_auth_repository_providers.dart';
+import 'package:setup/core/providers/app_providers.dart';
 
 class InsightsScreen extends ConsumerStatefulWidget {
   const InsightsScreen({super.key});
@@ -10,8 +12,31 @@ class InsightsScreen extends ConsumerStatefulWidget {
 }
 
 class _InsightsScreenState extends ConsumerState<InsightsScreen> {
+  final TextEditingController _hourController = TextEditingController();
+  final TextEditingController _energyController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(() async {
+      final asyncUser = ref.read(authStateChangesProvider);
+      final user = asyncUser.value;
+      if (user == null) return;
+
+      await user.getIdToken(true);
+      await user.reload();
+
+      final vm = ref.read(energyViewModelProvider.notifier);
+      await vm.fetchEnergyModel(user.uid);
+      vm.computeEnergyPrediction();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
+    final energyViewModel = ref.watch(energyViewModelProvider);
+    final user = ref.read(authStateChangesProvider).value;
+
     return Scaffold(
       body: Center(
         child: SizedBox(
@@ -19,135 +44,261 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
           width: MediaQuery.of(context).size.width - 20,
           child: Column(
             children: [
+              // Chart section - more space
               Flexible(
-                flex: 1,
-                child: Column(
-                  children: [
-                    Flexible(
-                      flex: 2,
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(0, 20, 0, 20),
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [Text('Peak'), Text('Low')],
+                flex: 4,
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 32.0, bottom: 16.0),
+                  child: Column(
+                    children: [
+                      Expanded(
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(0, 20, 0, 20),
+                              child: Column(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [Text('Peak'), Text('Low')],
+                              ),
                             ),
-                          ),
-                          LineChartSample4(
-                            mainLineColor: Color(0xFF354975),
-                            belowLineColor: Color(
-                              0xFF354975,
-                            ).withValues(alpha: 0.2),
-                            aboveLineColor: Colors.white.withValues(alpha: 0.7),
-                          ),
-                        ],
+                            Expanded(
+                              child: LineChartSample4(
+                                energyPoints: energyViewModel.predictedEnergy,
+                                mainLineColor: Color(0xFF354975),
+                                belowLineColor: Color(
+                                  0xFF354975,
+                                ).withOpacity(0.2),
+                                aboveLineColor: Colors.white.withOpacity(0.7),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                    Flexible(
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                        children: [
-                          Text('Morning'),
-                          Text('Noon'),
-                          Text('Evening'),
-                        ],
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8.0),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: [
+                            Text('Morning'),
+                            Text('Noon'),
+                            Text('Evening'),
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-              Flexible(
-                child: SizedBox(
-                  height: 150,
-                  width: MediaQuery.of(context).size.width - 20,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(40),
-                      border: Border.all(color: Color(0xFF354975), width: 2),
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        Flexible(
-                          child: Text("How well did you sleep last night?"),
+              // Add space between chart and feedback sections
+              const SizedBox(height: 24),
+              // Sleep quality feedback section (beautified)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8.0),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(32),
+                    border: Border.all(color: Color(0xFF354975), width: 2),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black12,
+                        blurRadius: 8,
+                        offset: Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      Text(
+                        "How well did you sleep last night?",
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
                         ),
-                        Flexible(
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                            children: [
-                              SizedBox(
-                                width: 100,
-                                child: ElevatedButton(
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.white,
-                                    foregroundColor: Colors.black,
-                                    side: const BorderSide(
-                                      color: Color(0xFF354975), // Border color
-                                      width: 2, // Border width
-                                    ),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(
-                                        20,
-                                      ), // Optional: rounded corners
-                                    ),
-                                  ),
-                                  onPressed: () {},
-                                  child: Text('Bad'),
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          _sleepButton("Bad"),
+                          _sleepButton("Normal"),
+                          _sleepButton("Good"),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              // Add more space before the last section
+              const SizedBox(height: 24),
+              // Energy feedback section (beautified)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 24.0),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(32),
+                    border: Border.all(color: Color(0xFF354975), width: 2),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black12,
+                        blurRadius: 8,
+                        offset: Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      Text(
+                        "Give your energy feedback (0-100) for a specific hour (0-23):",
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          SizedBox(
+                            width: 80,
+                            height: 36,
+                            child: TextField(
+                              controller: _hourController,
+                              keyboardType: TextInputType.number,
+                              style: const TextStyle(fontSize: 14),
+                              decoration: const InputDecoration(
+                                labelText: "Hour",
+                                hintText: "0-23",
+                                border: OutlineInputBorder(),
+                                isDense: true,
+                                contentPadding: EdgeInsets.symmetric(
+                                  vertical: 8,
+                                  horizontal: 8,
                                 ),
                               ),
-                              SizedBox(
-                                width: 100,
-                                child: ElevatedButton(
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.white,
-                                    foregroundColor: Colors.black,
-                                    side: const BorderSide(
-                                      color: Color(0xFF354975), // Border color
-                                      width: 2, // Border width
-                                    ),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(
-                                        20,
-                                      ), // Optional: rounded corners
-                                    ),
-                                  ),
-                                  onPressed: () {},
-                                  child: Text('Normal'),
-                                ),
-                              ),
-                              SizedBox(
-                                width: 100,
-                                child: ElevatedButton(
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.white,
-                                    foregroundColor: Colors.black,
-                                    side: const BorderSide(
-                                      color: Color(0xFF354975), // Border color
-                                      width: 2, // Border width
-                                    ),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(
-                                        20,
-                                      ), // Optional: rounded corners
-                                    ),
-                                  ),
-                                  onPressed: () {},
-                                  child: Text('Good'),
-                                ),
-                              ),
-                            ],
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
+                          SizedBox(
+                            width: 80,
+                            height: 36,
+                            child: TextField(
+                              controller: _energyController,
+                              keyboardType: TextInputType.number,
+                              style: const TextStyle(fontSize: 14),
+                              decoration: const InputDecoration(
+                                labelText: "Energy",
+                                hintText: "0-100",
+                                border: OutlineInputBorder(),
+                                isDense: true,
+                                contentPadding: EdgeInsets.symmetric(
+                                  vertical: 8,
+                                  horizontal: 8,
+                                ),
+                              ),
+                            ),
+                          ),
+                          SizedBox(
+                            width: 90,
+                            height: 36,
+                            child: ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF354975),
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                padding: EdgeInsets.zero,
+                              ),
+                              onPressed: () async {
+                                final hour = int.tryParse(_hourController.text);
+                                final energy = double.tryParse(
+                                  _energyController.text,
+                                );
+                                if (hour == null || hour < 0 || hour > 23) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        "Hour must be between 0 and 23",
+                                      ),
+                                    ),
+                                  );
+                                  return;
+                                }
+                                if (energy == null ||
+                                    energy < 0 ||
+                                    energy > 100) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        "Energy must be between 0 and 100",
+                                      ),
+                                    ),
+                                  );
+                                  return;
+                                }
+                                if (user == null) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text("User not found"),
+                                    ),
+                                  );
+                                  return;
+                                }
+                                final vm = ref.read(
+                                  energyViewModelProvider.notifier,
+                                );
+                                await vm.updateModel(hour, energy, user.uid);
+                                vm.computeEnergyPrediction();
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text("Energy feedback submitted!"),
+                                  ),
+                                );
+                              },
+                              child: const Text(
+                                'Submit',
+                                style: TextStyle(fontSize: 14),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
               ),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  // Helper for sleep feedback buttons
+  Widget _sleepButton(String label) {
+    return SizedBox(
+      width: 100,
+      child: ElevatedButton(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.white,
+          foregroundColor: Color(0xFF354975),
+          side: const BorderSide(color: Color(0xFF354975), width: 2),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+        ),
+        onPressed: () {},
+        child: Text(label),
       ),
     );
   }

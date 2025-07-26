@@ -1,19 +1,22 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:setup/viewmodels/energy_view_model.dart';
 
 class LineChartSample4 extends StatelessWidget {
+  final List<EnergyPoint> energyPoints;
+  final Color mainLineColor;
+  final Color belowLineColor;
+  final Color aboveLineColor;
+
   LineChartSample4({
     super.key,
+    required this.energyPoints,
     Color? mainLineColor,
     Color? belowLineColor,
     Color? aboveLineColor,
   }) : mainLineColor = mainLineColor ?? Colors.yellow.withValues(alpha: 1),
        belowLineColor = belowLineColor ?? Colors.white.withValues(alpha: 0.2),
        aboveLineColor = aboveLineColor ?? Colors.purple.withValues(alpha: 0.7);
-
-  final Color mainLineColor;
-  final Color belowLineColor;
-  final Color aboveLineColor;
 
   Widget bottomTitleWidgets(double value, TitleMeta meta) {
     String text;
@@ -73,13 +76,10 @@ class LineChartSample4 extends StatelessWidget {
             lineTouchData: const LineTouchData(enabled: false),
             lineBarsData: [
               LineChartBarData(
-                spots: const [
-                  FlSpot(0, 0),
-                  FlSpot(1, 2),
-                  FlSpot(2, 1),
-                  FlSpot(3, 3),
-                  FlSpot(4, 1),
-                ],
+                spots:
+                    energyPoints
+                        .map((e) => FlSpot(e.hour.toDouble(), e.energy))
+                        .toList(),
                 isCurved: true,
                 barWidth: 4,
                 color: mainLineColor,
