@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:setup/screens/insights.dart';
-import 'package:setup/screens/user_settings.dart';
+import 'package:setup/screens/main_screens/add_events.dart';
+import 'package:setup/screens/main_screens/insights.dart';
+import 'package:setup/screens/main_screens/user_profile.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -25,9 +26,7 @@ class _HomeScreenState extends State<HomeScreen> {
       case 0:
         return const InsightsScreen();
       case 1:
-        return const Center(
-          child: Text('Add Event', style: TextStyle(fontSize: 24)),
-        );
+        return const EventsScreen();
       case 2:
         return const ProfileScreen();
       default:

@@ -21,6 +21,7 @@ dependencies:
   fl_chart: ^1.0.0
   cloud_firestore: ^5.6.11
   intl: ^0.18.1
+  bottom_picker: ^4.0.1
   
 
 

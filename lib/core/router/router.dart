@@ -1,11 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:setup/screens/home_screen.dart';
-import 'package:setup/screens/sign_in.dart';
-import 'package:setup/screens/sign_up.dart';
-import 'package:setup/screens/user_creation/chronotype_screen.dart';
-import 'package:setup/screens/user_creation/sleep_schedule.dart';
-import 'package:setup/screens/user_creation/user_basic_information.dart';
+import 'package:setup/screens/auth/sign_in.dart';
+import 'package:setup/screens/auth/sign_up.dart';
+import 'package:setup/screens/profile_configuration/chronotype_screen.dart';
+import 'package:setup/screens/profile_configuration/sleep_schedule.dart';
+import 'package:setup/screens/profile_configuration/user_basic_information.dart';
 
 import 'router_notifier.dart';
 
