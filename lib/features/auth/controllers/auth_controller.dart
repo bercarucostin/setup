@@ -25,7 +25,6 @@ class AuthController extends Notifier<AuthState> {
     _authRepository = ref.read(firebaseAuthRepositoryProvider);
     _firestoreRepository = ref.read(firestoreRepositoryProvider);
 
-    // Listen to auth state changes and map to app states
     _authSub = _authRepository.authStateChanges.listen((user) async {
       if (user == null) {
         state = Unauthenticated();
@@ -34,28 +33,25 @@ class AuthController extends Notifier<AuthState> {
 
       state = AuthLoading();
 
-      // Ensure the user token is refreshed before accessing Firestore
-      await user.getIdToken(true);
+      try {
+        await user.getIdToken(true);
 
-      final doc = await _firestoreRepository.getData(
-        collectionPath: 'users',
-        docId: user.uid,
-      );
+        final doc = await _firestoreRepository.getData(
+          collectionPath: 'users',
+          docId: user.uid,
+        );
 
-      final hasCompletedProfile =
-          doc.exists && doc.data()?['hasCompletedProfile'] == true;
+        final hasCompletedProfile =
+            doc.exists && doc.data()?['hasCompletedProfile'] == true;
 
-      if (hasCompletedProfile) {
-        state = Authenticated(user);
-      } else {
-        state = IncompleteProfile(user);
+        state =
+            hasCompletedProfile ? Authenticated(user) : IncompleteProfile(user);
+      } catch (e) {
+        state = AuthError(_handleFirebaseError(e));
       }
     });
 
-    // Cancel stream when provider is disposed
-    ref.onDispose(() {
-      _authSub.cancel();
-    });
+    ref.onDispose(() => _authSub.cancel());
 
     return AuthLoading();
   }
@@ -66,7 +62,7 @@ class AuthController extends Notifier<AuthState> {
       await _authRepository.signIn(email: email, password: password);
       final user = _authRepository.currentUser;
       if (user != null) {
-        await user.getIdToken(true); // ensure token is ready
+        await user.getIdToken(true);
         state = _mapUserToState(user);
       }
     } catch (e) {
@@ -75,64 +71,73 @@ class AuthController extends Notifier<AuthState> {
   }
 
   Future<void> signUp(String email, String password) async {
-    final user = await _authRepository.signUp(email: email, password: password);
+    state = AuthLoading();
+    try {
+      final user = await _authRepository.signUp(
+        email: email,
+        password: password,
+      );
 
-    // Refresh token to ensure Firestore uses a valid token
-    await user.getIdToken(true);
+      await user.getIdToken(true);
 
-    // Check if the user document already exists
-    final userDoc = await _firestoreRepository.getData(
-      collectionPath: 'users',
-      docId: user.uid,
-    );
-
-    // If not, create it
-    if (!userDoc.exists) {
-      await _firestoreRepository.saveData(
+      final userDoc = await _firestoreRepository.getData(
         collectionPath: 'users',
         docId: user.uid,
-        data: {'email': user.email, 'hasCompletedProfile': false},
       );
+
+      if (!userDoc.exists) {
+        await _firestoreRepository.saveData(
+          collectionPath: 'users',
+          docId: user.uid,
+          data: {'email': user.email, 'hasCompletedProfile': false},
+        );
+      }
+
+      final updatedDoc = await _firestoreRepository.getData(
+        collectionPath: 'users',
+        docId: user.uid,
+      );
+
+      final hasCompletedProfile =
+          updatedDoc.exists &&
+          updatedDoc.data()?['hasCompletedProfile'] == true;
+
+      state =
+          hasCompletedProfile ? Authenticated(user) : IncompleteProfile(user);
+    } catch (e) {
+      state = AuthError(_handleFirebaseError(e));
     }
+  }
 
-    // Get updated document
-    final updatedDoc = await _firestoreRepository.getData(
-      collectionPath: 'users',
-      docId: user.uid,
-    );
+  Future<void> signInWithGoogle() async {
+    try {
+      final user = await _authRepository.signInWithGoogle();
 
-    final hasCompletedProfile =
-        updatedDoc.exists && updatedDoc.data()?['hasCompletedProfile'] == true;
+      if (user == null) {
+        state = Unauthenticated();
+        return;
+      }
 
-    state = hasCompletedProfile ? Authenticated(user) : IncompleteProfile(user);
+      await user.getIdToken(true);
+
+      final doc = await _firestoreRepository.getData(
+        collectionPath: 'users',
+        docId: user.uid,
+      );
+
+      final hasCompletedProfile =
+          doc.exists && doc.data()?['hasCompletedProfile'] == true;
+
+      state =
+          hasCompletedProfile ? Authenticated(user) : IncompleteProfile(user);
+    } catch (e) {
+      state = AuthError(_handleFirebaseError(e));
+    }
   }
 
   Future<void> signOut() async {
     _currentUser = null;
     await _authRepository.signOut();
-  }
-
-  Future<void> signInWithGoogle() async {
-    final user = await _authRepository.signInWithGoogle();
-    if (user == null) {
-      state = Unauthenticated();
-      return;
-    }
-
-    await user.getIdToken(true);
-
-    final firestoreRepo = ref.read(firestoreRepositoryProvider);
-
-    // Fetch the user document
-    final doc = await firestoreRepo.getData(
-      collectionPath: 'users',
-      docId: user.uid,
-    );
-
-    final hasCompletedProfile =
-        doc.exists && doc.data()?['hasCompletedProfile'] == true;
-
-    state = hasCompletedProfile ? Authenticated(user) : IncompleteProfile(user);
   }
 
   Stream<AuthState> get stream =>
@@ -149,5 +154,9 @@ class AuthController extends Notifier<AuthState> {
     return error is FirebaseAuthException
         ? error.message ?? 'Unknown Firebase error'
         : error.toString();
+  }
+
+  void reset() {
+    state = Unauthenticated();
   }
 }
