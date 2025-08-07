@@ -1,89 +1,80 @@
-import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
+// lib/features/energy/energy_view_model.dart
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:setup/features/firestore/providers/providers.dart';
+import 'package:setup/features/energy/models/energy_model.dart';
 import 'package:setup/features/energy/models/energy_point.dart';
 import 'package:setup/features/energy/repository/repository.dart';
-import '../models/energy_model.dart';
 
-class EnergyViewModel extends ChangeNotifier {
-  final EnergyRepository _repository;
-  EnergyViewModel(this._repository);
+/// Provides the Firestore-backed EnergyRepository
+final energyRepositoryProvider = Provider<EnergyRepository>((ref) {
+  final firestoreRepo = ref.read(firestoreRepositoryProvider);
+  return EnergyRepository(firestoreRepo);
+});
 
-  EnergyModel? _model;
-  final List<EnergyPoint> predictedEnergy = [];
+/// AsyncNotifierProvider managing load, refresh, and update of EnergyModel
+final energyModelProvider =
+    AsyncNotifierProvider<EnergyModelNotifier, EnergyModel?>(
+      EnergyModelNotifier.new,
+    );
 
-  Future<void> fetchEnergyModel(String userId, String chronotype) async {
-    // First try user-specific model
-    var model = await _repository.fetchUserEnergyModel(userId);
+class EnergyModelNotifier extends AsyncNotifier<EnergyModel?> {
+  @override
+  Future<EnergyModel?> build() async {
+    final repo = ref.read(energyRepositoryProvider);
+    // Fetch authenticated user info
+    final userProfile = await ref.watch(firestoreUserProvider.future);
+    final user = FirebaseAuth.instance.currentUser!;
+    final chronotype = userProfile['chronotype'] as String;
 
-    // Fallback: if no user-specific model, load defaults
-    model ??= await _repository.fetchDefaultEnergyModel(chronotype);
-
-    if (model != null) {
-      _model = model;
-      notifyListeners();
-    } else {
-      // Optional: handle case where no model was found at all
-      debugPrint(
-        'No energy model found for user $userId or default $chronotype',
-      );
-    }
+    // Load user-specific model or fallback
+    return await repo.fetchUserEnergyModel(user.uid) ??
+        await repo.fetchDefaultEnergyModel(chronotype);
   }
 
-  void computeEnergyPrediction() {
-    if (_model == null) {
-      throw Exception(
-        'EnergyModel is not initialized. Call fetchEnergyModel first.',
-      );
-    }
-
-    predictedEnergy.clear();
-    final wakeTime = _model!.wakeTime;
-    final bedTime = _model!.bedTime;
-    var hour = wakeTime;
-
-    while (hour != bedTime) {
-      final energy = _model!.predict(hour!, []);
-      predictedEnergy.add(EnergyPoint(hour, energy));
-      hour = (hour + 1) % 24;
-    }
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      notifyListeners();
-    });
+  /// Explicit refresh of the EnergyModel
+  Future<void> refreshModel() async {
+    state = const AsyncValue.loading();
+    state = await AsyncValue.guard(() => build());
   }
 
-  Future<void> updateModel(int hour, double actualEnergy, String userId) async {
-    if (_model == null) {
-      throw Exception(
-        'EnergyModel is not initialized. Call fetchEnergyModel first.',
-      );
+  /// Persist updated energy measurement back to Firestore
+  Future<void> updateModel({
+    required int hour,
+    required double actualEnergy,
+  }) async {
+    final model = state.requireValue;
+    if (model == null) {
+      throw StateError('No model loaded to update');
     }
-
-    // Update local model
-    _model!.update(hour, actualEnergy, userId);
-
-    // Persist updated model using the repository
-    await _repository.saveEnergyModel(userId, _model!);
-
-    notifyListeners();
-  }
-
-  List<int> getDisplayedHours({int gap = 3}) {
-    if (_model == null) return [];
-    final wakeTime = _model!.wakeTime;
-    final bedTime = _model!.bedTime;
-    List<int> hours = [];
-    int? hour = wakeTime;
-    while (hour != bedTime) {
-      hours.add(hour!);
-      hour = (hour + gap) % 24;
-      if (hours.length > 24) break;
-      if (hour == bedTime) break;
-      if ((wakeTime! < bedTime! && hour > bedTime) ||
-          (wakeTime > bedTime && hour > bedTime && hour < wakeTime)) {
-        break;
-      }
-    }
-    return hours;
+    final userId = FirebaseAuth.instance.currentUser!.uid;
+    // Update the model in memory
+    model.update(hour, actualEnergy, userId);
+    // Save via repository
+    final repo = ref.read(energyRepositoryProvider);
+    await repo.saveEnergyModel(userId, model);
+    // Emit updated model
+    state = AsyncData(model);
   }
 }
+
+/// Derived provider computing predicted energy points from the loaded model
+final predictedEnergyProvider = Provider<List<EnergyPoint>>((ref) {
+  final modelAsync = ref.watch(energyModelProvider);
+  if (modelAsync.isLoading || modelAsync.hasError || modelAsync.value == null) {
+    return const [];
+  }
+  final model = modelAsync.value!;
+  final pts = <EnergyPoint>[];
+  var hour = model.wakeTime;
+  while (hour != model.bedTime) {
+    pts.add(EnergyPoint(hour, model.predict(hour, [])));
+    hour = (hour + 1) % 24;
+  }
+  // Fire-and-forget save of updated model (no await)
+  Future.microtask(() {
+    final userId = FirebaseAuth.instance.currentUser!.uid;
+    ref.read(energyRepositoryProvider).saveEnergyModel(userId, model);
+  });
+  return pts;
+});

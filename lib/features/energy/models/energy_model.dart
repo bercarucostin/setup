@@ -2,10 +2,11 @@ import 'dart:math';
 import 'event.dart';
 
 class EnergyModel {
-  int? bedTime; // Added bedTime to match the original model
-  int? wakeTime;
+  int bedTime; // Added bedTime to match the original model
+  int wakeTime;
   int hoursSlept;
   num circadianPeak;
+  double sPrevNext;
   double sPrev;
   double wS;
   double wC;
@@ -22,6 +23,7 @@ class EnergyModel {
     required this.wakeTime,
     required this.hoursSlept,
     required this.circadianPeak,
+    required this.sPrevNext,
     required this.sPrev,
     required this.wS,
     required this.wC,
@@ -43,6 +45,7 @@ class EnergyModel {
       bedTime: userData['bedTime'],
       hoursSlept: energyModelData['hoursSlept'],
       circadianPeak: energyModelData['circadianPeak'],
+      sPrevNext: energyModelData['sPrevNext'],
       sPrev: energyModelData['sPrev'],
       wS: energyModelData['wS'],
       wC: energyModelData['wC'],
@@ -113,6 +116,7 @@ class EnergyModel {
     return {
       'hoursSlept': hoursSlept,
       'circadianPeak': circadianPeak,
+      'sPrevNext': sPrevNext,
       'sPrev': sPrev,
       'wS': wS,
       'wC': wC,
@@ -207,6 +211,13 @@ class EnergyModel {
   double predict(int hour, List<Event> events) {
     double S = _computeS(hour);
     double C = _computeC(hour);
+    int currentHour = DateTime.now().hour; // Use current hour for prediction
+    // if (currentHour >= bedTime) {
+    //   sPrevNext = S;
+    // }
+    // if (currentHour >= wakeTime && sPrevNext != sPrev) {
+    //   sPrev = sPrevNext;
+    // }
     double base = wS * (1 - S) + wC * ((C + 1) / 2);
     double energy =
         base * 100 +
