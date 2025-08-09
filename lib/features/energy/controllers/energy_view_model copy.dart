@@ -30,12 +30,13 @@ class EnergyModelNotifier extends AsyncNotifier<EnergyModel?> {
         ), // pick what matters
       ),
     );
-    final user = ref.watch(firebaseUserProvider);
-    if (user == null) return null;
+    final repo = ref.read(energyRepositoryProvider);
     // Fetch authenticated user info
     final userProfile = await ref.watch(firestoreUserProvider.future);
+    final user = ref.watch(firebaseUserProvider);
+    if (user == null) return null;
+
     final chronotype = (userProfile['chronotype'] as String?) ?? 'Morning';
-    final repo = ref.read(energyRepositoryProvider);
 
     // Load user-specific model or fallback
     return await repo.fetchUserEnergyModel(user.uid) ??

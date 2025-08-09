@@ -6,8 +6,10 @@ class EnergyModel {
   int wakeHour;
   int hoursSlept;
   num circadianPeak;
-  // double sPrevNext;
   double sPrev;
+  double sPrevNext;
+  int? sPrevNextEpochDay; // which epoch-day (local) this sPrevNext applies to
+  double sPrevDefault;
   double wS;
   double wC;
   num tau0;
@@ -23,8 +25,10 @@ class EnergyModel {
     required this.wakeHour,
     required this.hoursSlept,
     required this.circadianPeak,
-    // required this.sPrevNext,
     required this.sPrev,
+    required this.sPrevNext,
+    required this.sPrevNextEpochDay,
+    required this.sPrevDefault,
     required this.wS,
     required this.wC,
     required this.tau0,
@@ -45,8 +49,11 @@ class EnergyModel {
       bedHour: userData['bedHour'],
       hoursSlept: energyModelData['hoursSlept'],
       circadianPeak: energyModelData['circadianPeak'],
-      // sPrevNext: energyModelData['sPrevNext'],
-      sPrev: energyModelData['sPrev'],
+      sPrev: energyModelData['sPrev'] ?? energyModelData['sPrevDefault'],
+      sPrevNext:
+          energyModelData['sPrevNext'] ?? energyModelData['sPrevDefault'],
+      sPrevNextEpochDay: energyModelData['sPrevNextEpochDay'],
+      sPrevDefault: energyModelData['sPrevDefault'],
       wS: energyModelData['wS'],
       wC: energyModelData['wC'],
       tau0: energyModelData['tau0'],
@@ -58,66 +65,15 @@ class EnergyModel {
     );
   }
 
-  // // Firestore Integration: Fetch EnergyModel from Firestore
-  // static Future<EnergyModel?> fetchFromFirestore(String userId) async {
-  //   final userDocRef = FirebaseFirestore.instance
-  //       .collection('users')
-  //       .doc(userId);
-  //   final energyModelDocRef = userDocRef
-  //       .collection('energyModel')
-  //       .doc('default');
-
-  //   final userDoc = await userDocRef.get();
-  //   final energyModelDoc = await energyModelDocRef.get();
-
-  //   if (userDoc.exists && energyModelDoc.exists) {
-  //     final userData = userDoc.data()!;
-  //     final energyModelData = energyModelDoc.data()!;
-
-  //     return EnergyModel.fromFirestore(userData, energyModelData);
-  //   }
-  //   return null;
-  // }
-
-  // Firestore Integration: Fetch default EnergyModel for a chronotype
-  // static Future<EnergyModel?> fetchDefaultEnergyModel(String chronotype) async {
-  //   // Fetch default energy model for the given chronotype
-  //   final defaultDoc =
-  //       await FirebaseFirestore.instance
-  //           .collection('energyModelDefaults')
-  //           .doc(chronotype)
-  //           .get();
-
-  //   if (!defaultDoc.exists) {
-  //     return null; // No defaults for this chronotype
-  //   }
-
-  //   final energyModelData = defaultDoc.data()!;
-
-  //   // For defaults, there is no user data; we can provide dummy wake/bed times
-  //   // Or decide that these fields will be null-safe in the model
-  //   final userData = <String, dynamic>{'wakeHour': null, 'bedHour': null};
-
-  //   return EnergyModel.fromFirestore(userData, energyModelData);
-  // }
-
-  // Firestore Integration: Save EnergyModel to Firestore
-  // Future<void> saveToFirestore(String userId) async {
-  //   await FirebaseFirestore.instance
-  //       .collection('users')
-  //       .doc(userId)
-  //       .collection('energyModel')
-  //       .doc('default') // Assuming a single document named 'default'
-  //       .set(toFirestore());
-  // }
-
   // Convert EnergyModel to Firestore data
   Map<String, dynamic> toFirestore() {
     return {
       'hoursSlept': hoursSlept,
       'circadianPeak': circadianPeak,
-      // 'sPrevNext': sPrevNext,
       'sPrev': sPrev,
+      'sPrevNext': sPrevNext,
+      'sPrevNextEpochDay': sPrevNextEpochDay,
+      'sPrevDefault': sPrevDefault,
       'wS': wS,
       'wC': wC,
       'tau0': tau0,
@@ -129,76 +85,16 @@ class EnergyModel {
     };
   }
 
-  // Future<void> _updatewakeHour(String userId) async {
-  //   // Fetch today's date range
-  //   final today = DateTime.now();
-  //   final startOfDay = DateTime(today.year, today.month, today.day);
-  //   final endOfDay = DateTime(today.year, today.month, today.day, 23, 59, 59);
+  int _epochDay(DateTime dt) =>
+      DateTime(dt.year, dt.month, dt.day).millisecondsSinceEpoch ~/ 86400000;
 
-  //   // Fetch the latest 'wake_time' feedback
-  //   QuerySnapshot wakeHourSnapshot =
-  //       await FirebaseFirestore.instance
-  //           .collection('Feedback')
-  //           .where('userId', isEqualTo: userId)
-  //           .where(
-  //             'timestamp',
-  //             isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay),
-  //           )
-  //           .where(
-  //             'timestamp',
-  //             isLessThanOrEqualTo: Timestamp.fromDate(endOfDay),
-  //           )
-  //           .where('type', isEqualTo: 'wake_time')
-  //           .orderBy('timestamp', descending: true)
-  //           .limit(1)
-  //           .get();
-
-  //   if (wakeHourSnapshot.docs.isNotEmpty) {
-  //     UserFeedback latestwakeHourFeedback = UserFeedback.fromFirestore(
-  //       wakeHourSnapshot.docs.first.data() as Map<String, dynamic>,
-  //     );
-  //     wakeHour =
-  //         latestwakeHourFeedback.value
-  //             .toInt(); // Update wakeHour if feedback exists
-  //   }
-  // }
-
-  // Future<void> _updateHoursSlept(String userId) async {
-  //   // Fetch today's date range
-  //   final today = DateTime.now();
-  //   final startOfDay = DateTime(today.year, today.month, today.day);
-  //   final endOfDay = DateTime(today.year, today.month, today.day, 23, 59, 59);
-
-  //   // Fetch the latest 'sleep_quality' feedback
-  //   QuerySnapshot sleepQualitySnapshot =
-  //       await FirebaseFirestore.instance
-  //           .collection('Feedback')
-  //           .where('userId', isEqualTo: userId)
-  //           .where(
-  //             'timestamp',
-  //             isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay),
-  //           )
-  //           .where(
-  //             'timestamp',
-  //             isLessThanOrEqualTo: Timestamp.fromDate(endOfDay),
-  //           )
-  //           .where('type', isEqualTo: 'sleep_quality')
-  //           .orderBy('timestamp', descending: true)
-  //           .limit(1)
-  //           .get();
-
-  //   if (sleepQualitySnapshot.docs.isNotEmpty) {
-  //     UserFeedback latestSleepQualityFeedback = UserFeedback.fromFirestore(
-  //       sleepQualitySnapshot.docs.first.data() as Map<String, dynamic>,
-  //     );
-  //     int sleepQuality =
-  //         latestSleepQualityFeedback.value
-  //             .toInt(); // Update wakeHour if feedback exists
-  //     hoursSlept = (4 + (sleepQuality - 1) * (5 / 9)).toInt();
-  //   }
-  // }
-
-  double _computeS0() => sPrev * exp(-hoursSlept / tauSleep);
+  double _computeS0() {
+    if (sPrevNextEpochDay != null &&
+        sPrevNextEpochDay == _epochDay(DateTime.now())) {
+      sPrev = sPrevNext;
+    }
+    return sPrev * exp(-hoursSlept / tauSleep);
+  }
 
   double _computeS(int hour) {
     int tAwake = max(hour - wakeHour, 0);
@@ -213,6 +109,13 @@ class EnergyModel {
   double predict(int hour, List<Event> events) {
     final double S = _computeS(hour);
     final double C = _computeC(hour);
+
+    if (hour == bedHour) {
+      sPrevNext = S;
+      sPrevNextEpochDay = _epochDay(
+        DateTime.now().add(const Duration(days: 1)),
+      );
+    }
 
     final double base = wS * (1 - S) + wC * ((C + 1) / 2);
     double energy = base * 100.0;
