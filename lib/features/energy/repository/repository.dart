@@ -23,22 +23,21 @@ class EnergyRepository {
     return null;
   }
 
-  Future<EnergyModel?> fetchDefaultEnergyModel(String chronotype) async {
-    final defaultDoc = await _firestoreRepo.getData(
+  Future<EnergyModel?> fetchDefaultEnergyModel(
+    String chronotype,
+    String userId,
+  ) async {
+    final userDoc = await _firestoreRepo.getData(
+      collectionPath: 'users',
+      docId: userId,
+    );
+
+    final defaultEnergyDoc = await _firestoreRepo.getData(
       collectionPath: 'energyModelDefaults',
       docId: chronotype,
     );
 
-    print('Doc exists: ${defaultDoc.exists}');
-    print('Doc ID: ${defaultDoc.id}');
-    print('Data: ${defaultDoc.data()}');
-
-    if (!defaultDoc.exists) return null;
-
-    final data = defaultDoc.data()!;
-
-    print(data);
-    return EnergyModel.fromFirestore({'wakeTime': null, 'bedTime': null}, data);
+    return EnergyModel.fromFirestore(userDoc.data()!, defaultEnergyDoc.data()!);
   }
 
   Future<void> saveEnergyModel(String userId, EnergyModel model) {

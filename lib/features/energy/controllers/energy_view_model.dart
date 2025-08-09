@@ -1,6 +1,7 @@
 // lib/features/energy/energy_view_model.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:setup/features/auth/providers/providers.dart';
 import 'package:setup/features/firestore/providers/providers.dart';
 import 'package:setup/features/energy/models/energy_model.dart';
 import 'package:setup/features/energy/models/energy_point.dart';
@@ -21,6 +22,16 @@ final energyModelProvider =
 class EnergyModelNotifier extends AsyncNotifier<EnergyModel?> {
   @override
   Future<EnergyModel?> build() async {
+    ref.watch(
+      profileSetupProvider.select(
+        (u) => (
+          u.chronotype,
+          u.wakeHour,
+          u.bedHour,
+          u.goal,
+        ), // pick what matters
+      ),
+    );
     final repo = ref.read(energyRepositoryProvider);
     // Fetch authenticated user info
     final userProfile = await ref.watch(firestoreUserProvider.future);
@@ -29,7 +40,7 @@ class EnergyModelNotifier extends AsyncNotifier<EnergyModel?> {
 
     // Load user-specific model or fallback
     return await repo.fetchUserEnergyModel(user.uid) ??
-        await repo.fetchDefaultEnergyModel(chronotype);
+        await repo.fetchDefaultEnergyModel(chronotype, user.uid);
   }
 
   /// Explicit refresh of the EnergyModel
@@ -66,15 +77,15 @@ final predictedEnergyProvider = Provider<List<EnergyPoint>>((ref) {
   }
   final model = modelAsync.value!;
   final pts = <EnergyPoint>[];
-  var hour = model.wakeTime;
-  while (hour != model.bedTime) {
+  var hour = model.wakeHour;
+  while (hour != model.bedHour) {
     pts.add(EnergyPoint(hour, model.predict(hour, [])));
     hour = (hour + 1) % 24;
   }
   // Fire-and-forget save of updated model (no await)
-  Future.microtask(() {
-    final userId = FirebaseAuth.instance.currentUser!.uid;
-    ref.read(energyRepositoryProvider).saveEnergyModel(userId, model);
-  });
+  // Future.microtask(() {
+  //   final userId = FirebaseAuth.instance.currentUser!.uid;
+  //   ref.read(energyRepositoryProvider).saveEnergyModel(userId, model);
+  // });
   return pts;
 });

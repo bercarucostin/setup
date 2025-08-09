@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:intl/intl.dart';
 import 'package:setup/features/auth/models/auth_state.dart';
 import 'package:setup/features/auth/models/user.dart';
 import 'package:setup/features/auth/providers/providers.dart';
@@ -18,8 +19,13 @@ class ProfileSetupNotifier extends Notifier<UserData> {
     state = state.copyWith(chronotype: value);
   }
 
-  void updateSleepTimes(String wake, String bed) {
-    state = state.copyWith(wakeTime: wake, bedTime: bed);
+  void updateSleepTimes(String wake, String bed, int wakeHour, int bedHour) {
+    state = state.copyWith(
+      wakeTime: wake,
+      bedTime: bed,
+      wakeHour: wakeHour,
+      bedHour: bedHour,
+    );
   }
 
   void updateGoal(String value) {
@@ -55,5 +61,19 @@ class ProfileSetupNotifier extends Notifier<UserData> {
         refreshedUser,
       );
     }
+  }
+
+  Future<void> savePartial(WidgetRef ref, Map<String, dynamic> data) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) throw Exception('No signed-in user');
+
+    final repo = ref.read(firestoreRepositoryProvider);
+    // Only update the provided keys — everything else stays untouched.
+    await repo.saveData(
+      collectionPath: 'users',
+      docId: user.uid,
+      data: data,
+      merge: true,
+    );
   }
 }

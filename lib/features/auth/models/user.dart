@@ -1,9 +1,13 @@
+import 'package:flutter/material.dart';
+
 class UserData {
   final String? fullName;
   final String? birthday;
   final String? chronotype;
   final String? wakeTime;
   final String? bedTime;
+  final int? wakeHour;
+  final int? bedHour;
   final String? goal;
 
   const UserData({
@@ -12,6 +16,8 @@ class UserData {
     this.chronotype,
     this.wakeTime,
     this.bedTime,
+    this.wakeHour,
+    this.bedHour,
     this.goal,
   });
 
@@ -21,6 +27,8 @@ class UserData {
     String? chronotype,
     String? wakeTime,
     String? bedTime,
+    int? wakeHour,
+    int? bedHour,
     String? goal,
   }) {
     return UserData(
@@ -29,6 +37,8 @@ class UserData {
       chronotype: chronotype ?? this.chronotype,
       wakeTime: wakeTime ?? this.wakeTime,
       bedTime: bedTime ?? this.bedTime,
+      wakeHour: wakeHour ?? this.wakeHour,
+      bedHour: bedHour ?? this.bedHour,
       goal: goal ?? this.goal,
     );
   }
@@ -40,6 +50,8 @@ class UserData {
       'chronotype': chronotype,
       'wakeTime': wakeTime,
       'bedTime': bedTime,
+      'wakeHour': wakeHour,
+      'bedHour': bedHour,
       'email': email,
       'createdAt': DateTime.now(),
       'goal': goal,

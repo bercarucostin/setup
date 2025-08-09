@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:setup/features/auth/controllers/profile_setup_notifier.dart';
 import 'package:setup/features/auth/providers/providers.dart';
 
 class SleepScheduleScreen extends ConsumerStatefulWidget {
@@ -16,6 +15,11 @@ class _SleepScheduleScreenState extends ConsumerState<SleepScheduleScreen> {
   TimeOfDay? _wakeTime;
   TimeOfDay? _bedTime;
   bool _submitting = false;
+
+  int hour0to23Round(TimeOfDay t) {
+    final h = (t.hour + (t.minute >= 30 ? 1 : 0)) % 24;
+    return h;
+  }
 
   Future<void> _pickTime({
     required bool isWake,
@@ -63,6 +67,8 @@ class _SleepScheduleScreenState extends ConsumerState<SleepScheduleScreen> {
         .updateSleepTimes(
           _wakeTime!.format(context),
           _bedTime!.format(context),
+          hour0to23Round(_wakeTime!),
+          hour0to23Round(_bedTime!),
         );
 
     await ref.read(profileSetupProvider.notifier).submitAndSaveToFirestore(ref);

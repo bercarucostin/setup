@@ -1,10 +1,22 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/material.dart';
-import 'package:setup/features/auth/controllers/auth_controller.dart';
-import 'package:setup/features/auth/providers/providers.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:setup/features/firestore/providers/providers.dart';
+
+import 'package:setup/features/auth/providers/providers.dart'; // firebaseUserProvider, authControllerProvider, profileSetupProvider, authStateChangesProvider
+import 'package:setup/features/firestore/providers/providers.dart'; // firestoreRepositoryProvider
+
+/// Load the user's Firestore profile as a Map<String, dynamic>.
+final userProfileDocProvider = FutureProvider<Map<String, dynamic>?>((
+  ref,
+) async {
+  // Wait for the first auth emission on cold start
+  final user = await ref.watch(authStateChangesProvider.future);
+  if (user == null) return null;
+
+  final repo = ref.read(firestoreRepositoryProvider);
+  final doc = await repo.getData(collectionPath: 'users', docId: user.uid);
+  return doc.data();
+});
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -16,48 +28,40 @@ class ProfileScreen extends ConsumerStatefulWidget {
 class _ProfileScreenState extends ConsumerState<ProfileScreen>
     with TickerProviderStateMixin {
   final List<bool> _expanded = [false, false, false];
-  String? _chronotype;
-  String? _wakeTime;
-  String? _bedTime;
-  String? _goal;
 
-  bool _dataLoaded = false;
+  // Round to the nearest hour; minutes >= 30 round up. Returns 0..23.
+  int _hour0to23Round(TimeOfDay t) => (t.hour + (t.minute >= 30 ? 1 : 0)) % 24;
 
-  @override
-  void initState() {
-    super.initState();
-    _loadUserData();
-  }
-
-  Future<void> _loadUserData() async {
-    final asyncUser = ref.read(authStateChangesProvider);
-    final user = asyncUser.value;
-
-    if (user == null) return;
-
-    await user.getIdToken(true);
-    await user.reload();
-
-    if (!mounted) return;
-
-    final firestoreRepo = ref.read(firestoreRepositoryProvider);
-    final doc = await firestoreRepo.getData(
-      collectionPath: 'users',
-      docId: user.uid,
-    );
-
-    if (!mounted) return;
-
-    final data = doc.data();
-    if (data != null) {
-      if (!mounted) return;
-      setState(() {
-        _chronotype = data['chronotype'] as String?;
-        _wakeTime = data['wakeTime'] as String?;
-        _bedTime = data['bedTime'] as String?;
-        _goal = data['goal'] as String?;
-      });
+  // Parse "HH:mm" or "h:mm AM/PM" into TimeOfDay, with sensible defaults.
+  TimeOfDay _parseTimeOfDay(String? s, {int defH = 7, int defM = 0}) {
+    if (s == null || s.trim().isEmpty) {
+      return TimeOfDay(hour: defH, minute: defM);
     }
+    final normalized =
+        s.replaceAll('\u00A0', ' ').replaceAll('\u202F', ' ').trim();
+
+    // 24h: HH:mm
+    final m24 = RegExp(r'^(\d{1,2})\s*:\s*(\d{1,2})$').firstMatch(normalized);
+    if (m24 != null) {
+      final h = int.tryParse(m24.group(1) ?? '') ?? defH;
+      final m = int.tryParse(m24.group(2) ?? '') ?? defM;
+      return TimeOfDay(hour: h.clamp(0, 23), minute: m.clamp(0, 59));
+    }
+
+    // 12h: h:mm AM/PM
+    final m12 = RegExp(
+      r'^(\d{1,2})\s*:\s*(\d{1,2})\s*([AaPp][Mm])$',
+    ).firstMatch(normalized);
+    if (m12 != null) {
+      var h = int.tryParse(m12.group(1) ?? '') ?? defH;
+      final m = int.tryParse(m12.group(2) ?? '') ?? defM;
+      final ap = (m12.group(3) ?? '').toLowerCase();
+      if (ap == 'pm' && h != 12) h += 12;
+      if (ap == 'am' && h == 12) h = 0;
+      return TimeOfDay(hour: h.clamp(0, 23), minute: m.clamp(0, 59));
+    }
+
+    return TimeOfDay(hour: defH, minute: defM);
   }
 
   Widget _chronotypeIcon(String type) {
@@ -66,10 +70,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
       'Midday': 'assets/icons/midday.svg',
       'Evening': 'assets/icons/evening.svg',
     };
-    return SvgPicture.asset(assetPaths[type] ?? '', height: 18, width: 18);
+    final path = assetPaths[type];
+    return path == null
+        ? const SizedBox.shrink()
+        : SvgPicture.asset(path, height: 18, width: 18);
   }
 
-  Future<void> _editChronotype() async {
+  Future<void> _editChronotype(String? current) async {
     final options = ['Morning', 'Midday', 'Evening'];
 
     final selected = await showDialog<String>(
@@ -101,11 +108,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                           horizontal: 8,
                         ),
                         leading: _chronotypeIcon(type),
-                        title: Text(type),
+                        title: Text(
+                          type,
+                          style: TextStyle(
+                            fontWeight:
+                                type == current ? FontWeight.bold : null,
+                          ),
+                        ),
                         onTap: () => Navigator.pop(context, type),
                       );
-
-                      // Apply extra left padding only to Midday
                       return type == 'Midday'
                           ? Padding(
                             padding: const EdgeInsets.only(left: 5),
@@ -122,27 +133,34 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
           ),
     );
 
-    if (selected != null) {
-      final user = ref.read(firebaseUserProvider);
-      if (user != null) {
-        final firestoreRepo = ref.read(firestoreRepositoryProvider);
+    if (!mounted || selected == null) return;
 
-        await firestoreRepo.saveData(
-          collectionPath: 'users',
-          docId: user.uid,
-          data: {'chronotype': selected},
-          merge: true,
-        );
+    // Keep local provider state in sync
+    ref.read(profileSetupProvider.notifier).updateChronotype(selected);
 
-        setState(() => _chronotype = selected);
-      }
+    // Partial save to Firestore, then refresh the profile doc provider
+    final user = ref.read(firebaseUserProvider);
+    if (user != null) {
+      await ref
+          .read(firestoreRepositoryProvider)
+          .saveData(
+            collectionPath: 'users',
+            docId: user.uid,
+            data: {'chronotype': selected},
+            merge: true,
+          );
+      ref.invalidate(userProfileDocProvider);
     }
   }
 
-  Future<void> _editSleepSchedule() async {
+  Future<void> _editSleepSchedule(Map<String, dynamic>? profile) async {
     final wake = await showTimePicker(
       context: context,
-      initialTime: const TimeOfDay(hour: 7, minute: 0),
+      initialTime: _parseTimeOfDay(
+        profile?['wakeTime'] as String?,
+        defH: 7,
+        defM: 0,
+      ),
       helpText: 'Select Wake Up Time',
       initialEntryMode: TimePickerEntryMode.inputOnly,
     );
@@ -150,34 +168,47 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
 
     final bed = await showTimePicker(
       context: context,
-      initialTime: const TimeOfDay(hour: 23, minute: 0),
+      initialTime: _parseTimeOfDay(
+        profile?['bedTime'] as String?,
+        defH: 23,
+        defM: 0,
+      ),
       helpText: 'Select Bed Time',
       initialEntryMode: TimePickerEntryMode.inputOnly,
     );
     if (bed == null) return;
 
+    final wakeStr = wake.format(context);
+    final bedStr = bed.format(context);
+    final wakeH = _hour0to23Round(wake);
+    final bedH = _hour0to23Round(bed);
+
+    // Update local provider state (keeps other flows consistent)
+    ref
+        .read(profileSetupProvider.notifier)
+        .updateSleepTimes(wakeStr, bedStr, wakeH, bedH);
+
+    // Partial save: only the 4 fields we changed
     final user = ref.read(firebaseUserProvider);
     if (user != null) {
-      final firestoreRepo = ref.read(firestoreRepositoryProvider);
-
-      await firestoreRepo.saveData(
-        collectionPath: 'users',
-        docId: user.uid,
-        data: {
-          'wakeTime': wake.format(context),
-          'bedTime': bed.format(context),
-        },
-        merge: true,
-      );
-
-      setState(() {
-        _wakeTime = wake.format(context);
-        _bedTime = bed.format(context);
-      });
+      await ref
+          .read(firestoreRepositoryProvider)
+          .saveData(
+            collectionPath: 'users',
+            docId: user.uid,
+            data: {
+              'wakeTime': wakeStr,
+              'bedTime': bedStr,
+              'wakeHour': wakeH,
+              'bedHour': bedH,
+            },
+            merge: true,
+          );
+      ref.invalidate(userProfileDocProvider);
     }
   }
 
-  Future<void> _editGoal() async {
+  Future<void> _editGoal(String? current) async {
     final options = [
       'Improve my daily energy levels',
       'Optimize my sleep and recovery',
@@ -220,7 +251,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                         ),
                         title: Text(
                           option,
-                          style: const TextStyle(fontSize: 14),
+                          style: TextStyle(
+                            fontWeight:
+                                option == current ? FontWeight.bold : null,
+                          ),
                         ),
                         onTap: () => Navigator.pop(context, option),
                       );
@@ -234,198 +268,227 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
           ),
     );
 
-    if (selected != null) {
-      final user = ref.read(firebaseUserProvider);
-      if (user != null) {
-        final firestoreRepo = ref.read(firestoreRepositoryProvider);
+    if (!mounted || selected == null) return;
 
-        await firestoreRepo.saveData(
-          collectionPath: 'users',
-          docId: user.uid,
-          data: {'goal': selected},
-          merge: true,
-        );
+    ref.read(profileSetupProvider.notifier).updateGoal(selected);
 
-        setState(() => _goal = selected);
-      }
+    final user = ref.read(firebaseUserProvider);
+    if (user != null) {
+      await ref
+          .read(firestoreRepositoryProvider)
+          .saveData(
+            collectionPath: 'users',
+            docId: user.uid,
+            data: {'goal': selected},
+            merge: true,
+          );
+      ref.invalidate(userProfileDocProvider);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final asyncUser = ref.watch(authStateChangesProvider);
-    final displayName = asyncUser.value?.displayName ?? 'Guest';
+    final userAsync = ref.watch(authStateChangesProvider);
+    final profileAsync = ref.watch(userProfileDocProvider);
 
     final titles = ['Account Settings', 'Manage Subscription', 'Feedback'];
     final icons = [Icons.person, Icons.subscriptions, Icons.feedback];
 
     return Scaffold(
-      body: Column(
-        children: [
-          Expanded(
-            child: SingleChildScrollView(
-              child: Padding(
-                padding: const EdgeInsets.only(top: 32.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const Padding(
-                      padding: EdgeInsets.only(left: 24.0, bottom: 8.0),
-                      child: Text(
-                        'Settings',
-                        style: TextStyle(
-                          fontSize: 28,
-                          fontWeight: FontWeight.bold,
-                          fontFamily: 'Montserrat',
-                          color: Colors.black87,
-                        ),
-                      ),
-                    ),
-                    ...List.generate(_expanded.length, (index) {
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 20.0,
-                          vertical: 8.0,
-                        ),
-                        child: TweenAnimationBuilder<double>(
-                          tween: Tween<double>(
-                            begin: _expanded[index] ? 0 : 1,
-                            end: _expanded[index] ? 1 : 0,
+      body: profileAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, st) => Center(child: Text('Error: $e')),
+        data: (profile) {
+          final chronotype = profile?['chronotype'] as String?;
+          final wakeTime = profile?['wakeTime'] as String?;
+          final bedTime = profile?['bedTime'] as String?;
+          final goal = profile?['goal'] as String?;
+          final displayName = userAsync.value?.displayName ?? 'Guest';
+
+          return Column(
+            children: [
+              Expanded(
+                child: SingleChildScrollView(
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 32.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const Padding(
+                          padding: EdgeInsets.only(left: 24.0, bottom: 8.0),
+                          child: Text(
+                            'Settings',
+                            style: TextStyle(
+                              fontSize: 28,
+                              fontWeight: FontWeight.bold,
+                              fontFamily: 'Montserrat',
+                              color: Colors.black87,
+                            ),
                           ),
-                          duration: const Duration(milliseconds: 300),
-                          curve: Curves.easeInOut,
-                          builder: (context, value, child) {
-                            return GestureDetector(
-                              onTap: () {
-                                setState(
-                                  () => _expanded[index] = !_expanded[index],
-                                );
-                              },
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 300),
-                                curve: Curves.easeInOut,
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(16),
-                                  boxShadow: const [
-                                    BoxShadow(
-                                      color: Colors.black12,
-                                      blurRadius: 8,
-                                      offset: Offset(0, 4),
-                                    ),
-                                  ],
-                                ),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16.0,
-                                  vertical: 12.0,
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Icon(
-                                          icons[index],
-                                          color: Colors.black54,
-                                          size: 20,
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Text(
-                                          titles[index],
-                                          style: const TextStyle(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.normal,
-                                          ),
-                                        ),
-                                        const Spacer(),
-                                        Icon(
-                                          _expanded[index]
-                                              ? Icons.expand_less
-                                              : Icons.expand_more,
-                                          size: 18,
-                                          color: Colors.grey,
+                        ),
+                        ...List.generate(_expanded.length, (index) {
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 20.0,
+                              vertical: 8.0,
+                            ),
+                            child: TweenAnimationBuilder<double>(
+                              tween: Tween<double>(
+                                begin: _expanded[index] ? 0 : 1,
+                                end: _expanded[index] ? 1 : 0,
+                              ),
+                              duration: const Duration(milliseconds: 300),
+                              curve: Curves.easeInOut,
+                              builder: (context, value, child) {
+                                return GestureDetector(
+                                  onTap: () {
+                                    setState(
+                                      () =>
+                                          _expanded[index] = !_expanded[index],
+                                    );
+                                  },
+                                  child: AnimatedContainer(
+                                    duration: const Duration(milliseconds: 300),
+                                    curve: Curves.easeInOut,
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(16),
+                                      boxShadow: const [
+                                        BoxShadow(
+                                          color: Colors.black12,
+                                          blurRadius: 8,
+                                          offset: Offset(0, 4),
                                         ),
                                       ],
                                     ),
-                                    ClipRect(
-                                      child: Align(
-                                        heightFactor: value,
-                                        alignment: Alignment.topCenter,
-                                        child:
-                                            _expanded[index]
-                                                ? _buildExpandedContent(
-                                                  index,
-                                                  displayName,
-                                                )
-                                                : const SizedBox.shrink(),
-                                      ),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 16.0,
+                                      vertical: 12.0,
                                     ),
-                                  ],
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                      );
-                    }),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 20.0,
-              vertical: 8.0,
-            ),
-            child: Container(
-              width: double.infinity,
-              height: 60,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Colors.black12,
-                    blurRadius: 8,
-                    offset: Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Center(
-                child: ElevatedButton.icon(
-                  onPressed: () async {
-                    await ref.read(authControllerProvider.notifier).signOut();
-                  },
-                  icon: const Icon(Icons.logout, color: Colors.red),
-                  label: const Text(
-                    'Sign Out',
-                    style: TextStyle(color: Colors.red),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white,
-                    foregroundColor: Colors.red,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            Icon(
+                                              icons[index],
+                                              color: Colors.black54,
+                                              size: 20,
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Text(
+                                              titles[index],
+                                              style: const TextStyle(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.normal,
+                                              ),
+                                            ),
+                                            const Spacer(),
+                                            Icon(
+                                              _expanded[index]
+                                                  ? Icons.expand_less
+                                                  : Icons.expand_more,
+                                              size: 18,
+                                              color: Colors.grey,
+                                            ),
+                                          ],
+                                        ),
+                                        ClipRect(
+                                          child: Align(
+                                            heightFactor: value,
+                                            alignment: Alignment.topCenter,
+                                            child:
+                                                _expanded[index]
+                                                    ? _buildExpandedContent(
+                                                      index,
+                                                      profile: profile,
+                                                      chronotype: chronotype,
+                                                      wakeTime: wakeTime,
+                                                      bedTime: bedTime,
+                                                      goal: goal,
+                                                    )
+                                                    : const SizedBox.shrink(),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          );
+                        }),
+                      ],
                     ),
                   ),
                 ),
               ),
-            ),
-          ),
-        ],
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20.0,
+                  vertical: 8.0,
+                ),
+                child: Container(
+                  width: double.infinity,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Colors.black12,
+                        blurRadius: 8,
+                        offset: Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Center(
+                    child: ElevatedButton.icon(
+                      onPressed: () async {
+                        await ref
+                            .read(authControllerProvider.notifier)
+                            .signOut();
+                      },
+                      icon: const Icon(Icons.logout, color: Colors.red),
+                      label: const Text(
+                        'Sign Out',
+                        style: TextStyle(color: Colors.red),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: Colors.red,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
 
-  Widget _buildExpandedContent(int index, String displayName) {
+  Widget _buildExpandedContent(
+    int index, {
+    required Map<String, dynamic>? profile,
+    required String? chronotype,
+    required String? wakeTime,
+    required String? bedTime,
+    required String? goal,
+  }) {
     if (index == 0) {
+      // Account Settings
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const SizedBox(height: 16),
-          if (_chronotype != null)
+          if (chronotype != null)
             Row(
               children: [
                 Expanded(
@@ -443,15 +506,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                         Row(
                           children: [
                             Text(
-                              'Chronotype: $_chronotype',
+                              'Chronotype: $chronotype',
                               style: const TextStyle(fontSize: 14),
                             ),
                             const SizedBox(width: 8),
-                            _chronotypeIcon(_chronotype!),
+                            _chronotypeIcon(chronotype),
                           ],
                         ),
                         TextButton(
-                          onPressed: _editChronotype,
+                          onPressed: () => _editChronotype(chronotype),
                           child: const Text('Edit'),
                         ),
                       ],
@@ -460,7 +523,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                 ),
               ],
             ),
-          if (_wakeTime != null && _bedTime != null)
+          if (wakeTime != null && bedTime != null)
             Row(
               children: [
                 Expanded(
@@ -475,12 +538,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                       children: [
                         Expanded(
                           child: Text(
-                            'Wake: $_wakeTime → Bed: $_bedTime',
+                            'Wake: $wakeTime → Bed: $bedTime',
                             style: const TextStyle(fontSize: 14),
                           ),
                         ),
                         TextButton(
-                          onPressed: _editSleepSchedule,
+                          onPressed: () => _editSleepSchedule(profile),
                           child: const Text('Edit'),
                         ),
                       ],
@@ -489,8 +552,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                 ),
               ],
             ),
-          SizedBox(height: 8),
-          if (_goal != null)
+          const SizedBox(height: 8),
+          if (goal != null)
             Row(
               children: [
                 Expanded(
@@ -505,12 +568,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                       children: [
                         Expanded(
                           child: Text(
-                            'Goal: $_goal',
+                            'Goal: $goal',
                             style: const TextStyle(fontSize: 14),
                           ),
                         ),
                         TextButton(
-                          onPressed: _editGoal,
+                          onPressed: () => _editGoal(goal),
                           child: const Text('Edit'),
                         ),
                       ],
@@ -522,6 +585,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
         ],
       );
     } else if (index == 1) {
+      // Manage Subscription
       return Column(
         children: [
           const SizedBox(height: 16),
@@ -532,6 +596,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
         ],
       );
     } else if (index == 2) {
+      // Feedback
       return Column(
         children: [
           const SizedBox(height: 16),
