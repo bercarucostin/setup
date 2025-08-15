@@ -30,6 +30,39 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
     final points = ref.watch(predictedEnergyProvider);
     final user = FirebaseAuth.instance.currentUser;
 
+    // Helper for sleep feedback buttons
+    Widget _sleepButton(String label) {
+      return SizedBox(
+        width: 100,
+        child: ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.white,
+            foregroundColor: Color(0xFF354975),
+            side: const BorderSide(color: Color(0xFF354975), width: 2),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+          ),
+          onPressed: () async {
+            final Map<String, dynamic> sleepMap = {
+              'Awful': 3,
+              'Okay': 6,
+              'Great': 9,
+            };
+            final hoursSlept = sleepMap[label];
+            if (user == null) {
+              _showSnack('User not authenticated');
+              return;
+            }
+            await notifier.updateHoursSlept(hoursSlept: hoursSlept);
+            notifier.refreshModel();
+            _showSnack('Energy feedback submitted!');
+          },
+          child: Text(label),
+        ),
+      );
+    }
+
     return Scaffold(
       body: energyAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -135,9 +168,9 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                             children: [
-                              _sleepButton("Bad"),
-                              _sleepButton("Normal"),
-                              _sleepButton("Good"),
+                              _sleepButton("Awful"),
+                              _sleepButton("Okay"),
+                              _sleepButton("Great"),
                             ],
                           ),
                         ],
@@ -222,7 +255,7 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
                                       _showSnack('User not authenticated');
                                       return;
                                     }
-                                    await notifier.updateModel(
+                                    await notifier.updateModelWeights(
                                       hour: hour,
                                       actualEnergy: energy,
                                     );
@@ -246,25 +279,6 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
             ),
           );
         },
-      ),
-    );
-  }
-
-  // Helper for sleep feedback buttons
-  Widget _sleepButton(String label) {
-    return SizedBox(
-      width: 100,
-      child: ElevatedButton(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.white,
-          foregroundColor: Color(0xFF354975),
-          side: const BorderSide(color: Color(0xFF354975), width: 2),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-        ),
-        onPressed: () {},
-        child: Text(label),
       ),
     );
   }

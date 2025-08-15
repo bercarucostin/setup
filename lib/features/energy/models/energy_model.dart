@@ -4,7 +4,8 @@ import 'event.dart';
 class EnergyModel {
   int bedHour; // Added bedHour to match the original model
   int wakeHour;
-  int hoursSlept;
+  int? hoursSlept;
+  int? hoursSleptEpochDay; // which epoch-day (local) this hoursSlept applies to
   num circadianPeak;
   double sPrev;
   double sPrevNext;
@@ -23,7 +24,8 @@ class EnergyModel {
   EnergyModel({
     required this.bedHour,
     required this.wakeHour,
-    required this.hoursSlept,
+    this.hoursSlept,
+    this.hoursSleptEpochDay,
     required this.circadianPeak,
     required this.sPrev,
     required this.sPrevNext,
@@ -48,6 +50,7 @@ class EnergyModel {
       wakeHour: userData['wakeHour'],
       bedHour: userData['bedHour'],
       hoursSlept: energyModelData['hoursSlept'],
+      hoursSleptEpochDay: energyModelData['hoursSleptEpochDay'],
       circadianPeak: energyModelData['circadianPeak'],
       sPrev: energyModelData['sPrev'] ?? energyModelData['sPrevDefault'],
       sPrevNext:
@@ -69,6 +72,7 @@ class EnergyModel {
   Map<String, dynamic> toFirestore() {
     return {
       'hoursSlept': hoursSlept,
+      'hoursSleptEpochDay': hoursSleptEpochDay,
       'circadianPeak': circadianPeak,
       'sPrev': sPrev,
       'sPrevNext': sPrevNext,
@@ -88,22 +92,38 @@ class EnergyModel {
   int _epochDay(DateTime dt) =>
       DateTime(dt.year, dt.month, dt.day).millisecondsSinceEpoch ~/ 86400000;
 
+  int _hoursSlept() {
+    if (hoursSlept != null &&
+        hoursSleptEpochDay != null &&
+        hoursSleptEpochDay == _epochDay(DateTime.now())) {
+      return hoursSlept!;
+    }
+    // Calculate hours slept based on wakeHour and bedHour
+    return (wakeHour - bedHour) % 24;
+  }
+
   double _computeS0() {
     if (sPrevNextEpochDay != null &&
         sPrevNextEpochDay == _epochDay(DateTime.now())) {
       sPrev = sPrevNext;
     }
-    return sPrev * exp(-hoursSlept / tauSleep);
+    return sPrev * exp(-(_hoursSlept()) / tauSleep);
   }
 
   double _computeS(int hour) {
-    int tAwake = max(hour - wakeHour, 0);
+    int tAwake = max((hour - wakeHour) % 24, 0);
+    print(_computeS0());
     return 1 - (1 - _computeS0()) * exp(-tAwake / tau0);
   }
 
   double _computeC(int hour) {
     // +pi/2 so that C is near-max at the peak hour
-    return sin(2 * pi * (hour - circadianPeak) / 24 + pi / 2);
+    return sin(2 * pi * ((hour - circadianPeak) % 24) / 24 + pi / 2);
+  }
+
+  void updateHoursSlept(int hoursSlept) {
+    this.hoursSlept = hoursSlept;
+    this.hoursSleptEpochDay = _epochDay(DateTime.now());
   }
 
   double predict(int hour, List<Event> events) {
@@ -126,12 +146,12 @@ class EnergyModel {
           .fold<double>(0.0, (a, b) => a + b);
       energy += delta;
     }
-
+    print('Energy prediction for hour $hour: $energy');
     // Keep result interpretable for UI/learning
     return energy.clamp(0.0, 100.0).toDouble();
   }
 
-  Future<void> update(int hour, double actualEnergy, String userId) async {
+  void updateWeights(int hour, double actualEnergy, String userId) {
     final double S = _computeS(hour);
     final double C = _computeC(hour);
     final double ePred = predict(hour, []);
@@ -163,7 +183,8 @@ class EnergyModel {
     // --- Update circadian peak (phase) ---
     // Derivative matches the +pi/2 phase used in _computeC
     final double dCdp =
-        -(2 * pi / 24.0) * cos(2 * pi * (hour - circadianPeak) / 24.0 + pi / 2);
+        -(2 * pi / 24.0) *
+        cos(2 * pi * ((hour - circadianPeak) % 24) / 24.0 + pi / 2);
     final double gradPhi = error * wC * 0.5 * dCdp;
 
     double newPeak = circadianPeak - lrCircadianPeak * gradPhi;
@@ -179,7 +200,7 @@ class EnergyModel {
     final double S0 = _computeS0();
     final double expAwake = exp(-tAwake / tau0);
     final double dEtauSleep =
-        -wS * expAwake * S0 * (hoursSlept / (tauSleep * tauSleep));
+        -wS * expAwake * S0 * (_hoursSlept() / (tauSleep * tauSleep));
     tauSleep =
         (tauSleep - lrTauSleep * error * dEtauSleep).clamp(3.0, 6.0).toDouble();
   }
