@@ -111,14 +111,13 @@ class EnergyModel {
   }
 
   double _computeS(int hour) {
-    int tAwake = max((hour - wakeHour) % 24, 0);
-    print(_computeS0());
+    final int tAwake = (hour - wakeHour) % 24;
     return 1 - (1 - _computeS0()) * exp(-tAwake / tau0);
   }
 
   double _computeC(int hour) {
     // +pi/2 so that C is near-max at the peak hour
-    return sin(2 * pi * ((hour - circadianPeak) % 24) / 24 + pi / 2);
+    return sin(2 * pi * (hour - circadianPeak) / 24 + pi / 2);
   }
 
   void updateHoursSlept(int hoursSlept) {
@@ -146,7 +145,7 @@ class EnergyModel {
           .fold<double>(0.0, (a, b) => a + b);
       energy += delta;
     }
-    print('Energy prediction for hour $hour: $energy');
+    // print('Energy prediction for hour $hour: $energy');
     // Keep result interpretable for UI/learning
     return energy.clamp(0.0, 100.0).toDouble();
   }

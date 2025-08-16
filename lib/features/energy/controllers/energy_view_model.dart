@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:setup/features/auth/providers/providers.dart';
 import 'package:setup/features/firestore/providers/providers.dart';
 import 'package:setup/features/energy/models/energy_model.dart';
-import 'package:setup/features/energy/repository/repository.dart';
+import 'package:setup/features/energy/repository/energy_repository.dart';
 
 /// Provides the Firestore-backed EnergyRepository
 final energyRepositoryProvider = Provider<EnergyRepository>((ref) {
@@ -12,10 +12,10 @@ final energyRepositoryProvider = Provider<EnergyRepository>((ref) {
 });
 
 /// AsyncNotifierProvider managing load, refresh, and update of EnergyModel
-final energyModelProvider =
-    AsyncNotifierProvider<EnergyModelNotifier, EnergyModel?>(
-      EnergyModelNotifier.new,
-    );
+// final energyModelProvider =
+//     AsyncNotifierProvider<EnergyModelNotifier, EnergyModel?>(
+//       EnergyModelNotifier.new,
+//     );
 
 class EnergyModelNotifier extends AsyncNotifier<EnergyModel?> {
   @override

@@ -26,7 +26,7 @@ class _HomeScreenState extends State<HomeScreen> {
       case 0:
         return const InsightsScreen();
       case 1:
-        return const EventsScreen();
+        return const AddEventsScreen();
       case 2:
         return const ProfileScreen();
       default:

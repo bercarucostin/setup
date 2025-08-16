@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:setup/features/energy/providers/energy_providers.dart';
+import 'package:setup/features/energy/providers/energy_provider.dart';
 import 'package:setup/features/energy/widgets/chart.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
