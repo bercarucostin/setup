@@ -22,23 +22,19 @@ final energyModelProvider =
     );
 
 /// Derived provider computing predicted energy points from the loaded model
-final predictedEnergyProvider = Provider<List<EnergyPoint>>((ref) {
-  final modelAsync = ref.watch(energyModelProvider);
-  final eventsAsync = ref.watch(eventListProvider);
-  final List<Event> events = eventsAsync.maybeWhen(
-    data: (e) => e,
-    orElse: () => const <Event>[],
-  );
-  final user = ref.watch(firebaseUserProvider);
-  if (user == null ||
-      modelAsync.isLoading ||
-      modelAsync.hasError ||
-      modelAsync.value == null) {
-    return const [];
-  }
-  final model = modelAsync.value!;
-  final pts = <EnergyPoint>[];
+final predictedEnergyProvider = FutureProvider<List<EnergyPoint>>((ref) async {
+  final user = await ref.watch(signedInUserProvider.future);
+  // final userData = ref.watch(userProfileDocProvider);
+  final model = await ref.watch(energyModelProvider.future);
 
+  if (model == null) {
+    return const <EnergyPoint>[];
+  }
+
+  final events = await ref
+      .watch(eventListProvider.future)
+      .catchError((_) => const <Event>[]);
+  final pts = <EnergyPoint>[];
   var hour = model.wakeHour;
   int steps = 0;
   while (hour != model.bedHour && steps < 24) {

@@ -3,20 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 import 'package:setup/features/auth/providers/providers.dart'; // firebaseUserProvider, authControllerProvider, profileSetupProvider, authStateChangesProvider
+import 'package:setup/features/energy/providers/energy_provider.dart';
 import 'package:setup/features/firestore/providers/providers.dart'; // firestoreRepositoryProvider
-
-/// Load the user's Firestore profile as a Map<String, dynamic>.
-final userProfileDocProvider = FutureProvider<Map<String, dynamic>?>((
-  ref,
-) async {
-  // Wait for the first auth emission on cold start
-  final user = await ref.watch(authStateChangesProvider.future);
-  if (user == null) return null;
-
-  final repo = ref.read(firestoreRepositoryProvider);
-  final doc = await repo.getData(collectionPath: 'users', docId: user.uid);
-  return doc.data();
-});
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -149,7 +137,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
             data: {'chronotype': selected},
             merge: true,
           );
-      ref.invalidate(userProfileDocProvider);
+      Future.microtask(() async {
+        await ref.read(energyRepositoryProvider).deleteEnergyModel(user.uid);
+        // If you have an energyModelProvider, refresh it so it refetches default
+        // ref.invalidate(energyModelProvider);
+      });
     }
   }
 
@@ -204,7 +196,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
             },
             merge: true,
           );
-      ref.invalidate(userProfileDocProvider);
+      // ref.invalidate(userProfileDocProvider);
     }
   }
 
@@ -282,7 +274,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
             data: {'goal': selected},
             merge: true,
           );
-      ref.invalidate(userProfileDocProvider);
+      // ref.invalidate(userProfileDocProvider);
     }
   }
 
@@ -298,7 +290,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
       body: profileAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, st) => Center(child: Text('Error: $e')),
-        data: (profile) {
+        data: (snap) {
+          final Map<String, dynamic>? profile =
+              (snap != null && snap.exists) ? snap.data() : null;
           final chronotype = profile?['chronotype'] as String?;
           final wakeTime = profile?['wakeTime'] as String?;
           final bedTime = profile?['bedTime'] as String?;

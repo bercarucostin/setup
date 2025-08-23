@@ -6,6 +6,7 @@ import 'package:setup/features/auth/controllers/auth_controller.dart';
 import 'package:setup/features/auth/models/auth_state.dart';
 import 'package:setup/features/auth/models/user.dart';
 import 'package:setup/features/auth/repository/firebase_auth.dart';
+import 'package:setup/features/firestore/providers/providers.dart';
 
 /// Provides the FirebaseAuthRepository instance.
 /// This repository handles authentication operations like sign-in, sign-out, etc.
@@ -38,3 +39,32 @@ final authControllerProvider = NotifierProvider<AuthController, AuthState>(
 final profileSetupProvider = NotifierProvider<ProfileSetupNotifier, UserData>(
   () => ProfileSetupNotifier(),
 );
+
+final userProfileDocProvider =
+    StreamProvider<DocumentSnapshot<Map<String, dynamic>>?>((ref) {
+      final auth = ref.watch(authStateChangesProvider);
+      return auth.when(
+        loading: () => const Stream.empty(),
+        error: (_, __) => const Stream.empty(),
+        data: (user) {
+          if (user == null) return const Stream.empty();
+          return FirebaseFirestore.instance
+              .collection('users')
+              .doc(user.uid)
+              .snapshots();
+        },
+      );
+    });
+
+final signedInUserProvider = FutureProvider.autoDispose<User>((ref) async {
+  // Tie this provider to auth updates so it recomputes on sign-in/sign-out.
+  ref.watch(authStateChangesProvider);
+  ref.watch(profileSetupProvider);
+
+  // Wait for the first non-null user from Firebase.
+  final repo = ref.read(firebaseAuthRepositoryProvider);
+  return await repo.authStateChanges
+      .where((u) => u != null)
+      .map((u) => u!) // safe due to predicate
+      .first; // completes when a user is available
+});

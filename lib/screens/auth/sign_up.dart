@@ -135,9 +135,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                                 : _buildSignupOptions(context, authState),
                             GestureDetector(
                               onTap: () {
-                                ref
-                                    .read(authControllerProvider.notifier)
-                                    .reset();
+                                ref.read(authControllerProvider.notifier);
                                 context.go('/login');
                               },
                               child: Row(

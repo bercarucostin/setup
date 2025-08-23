@@ -314,7 +314,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
   Widget _buildSignUpText(BuildContext context) {
     return GestureDetector(
       onTap: () {
-        ref.read(authControllerProvider.notifier).reset();
+        ref.read(authControllerProvider.notifier);
         context.go('/signup');
       },
       child: Row(

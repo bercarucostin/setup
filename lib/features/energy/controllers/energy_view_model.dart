@@ -20,26 +20,18 @@ final energyRepositoryProvider = Provider<EnergyRepository>((ref) {
 class EnergyModelNotifier extends AsyncNotifier<EnergyModel?> {
   @override
   Future<EnergyModel?> build() async {
-    ref.watch(
-      profileSetupProvider.select(
-        (u) => (
-          u.chronotype,
-          u.wakeHour,
-          u.bedHour,
-          u.goal,
-        ), // pick what matters
-      ),
-    );
-    final user = ref.watch(firebaseUserProvider);
-    if (user == null) return null;
+    final user = await ref.watch(signedInUserProvider.future);
     // Fetch authenticated user info
-    final userProfile = await ref.watch(firestoreUserProvider.future);
-    final chronotype = (userProfile['chronotype'] as String?) ?? 'Morning';
-    final repo = ref.read(energyRepositoryProvider);
+    final snap = await ref.watch(userProfileDocProvider.future);
+    final profile =
+        (snap != null && snap.exists) ? snap.data()! : <String, dynamic>{};
+    // 3) Read fields needed to choose/fetch the model
+    final chronotype = (profile['chronotype'] as String);
 
-    // Load user-specific model or fallback
-    return await repo.fetchUserEnergyModel(user.uid) ??
-        await repo.fetchDefaultEnergyModel(chronotype, user.uid);
+    // 4) Load user-specific model or fallback
+    final repo = ref.read(energyRepositoryProvider);
+    return await repo.fetchUserEnergyModel(profile, user.uid) ??
+        await repo.fetchDefaultEnergyModel(chronotype, profile, user.uid);
   }
 
   /// Explicit refresh of the EnergyModel
@@ -87,5 +79,13 @@ class EnergyModelNotifier extends AsyncNotifier<EnergyModel?> {
 
     // Emit updated model
     state = AsyncData(model);
+  }
+
+  Future<void> deleteModel(String userId) async {
+    final repo = ref.read(energyRepositoryProvider);
+    await repo.deleteEnergyModel(userId);
+
+    // Clear local model
+    state = const AsyncData(null);
   }
 }

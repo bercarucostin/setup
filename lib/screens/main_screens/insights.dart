@@ -99,22 +99,25 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
                                   ),
                                 ),
                                 Expanded(
-                                  child:
-                                      points.isEmpty
-                                          ? const Center(
-                                            child: Text(
-                                              'No energy prediction available.',
-                                            ),
-                                          )
-                                          : LineChartSample4(
-                                            energyPoints: points,
-                                            mainLineColor: Color(0xFF354975),
-                                            belowLineColor: Color(
-                                              0xFF354975,
-                                            ).withOpacity(0.2),
-                                            aboveLineColor: Colors.white
-                                                .withOpacity(0.7),
-                                          ),
+                                  child: points.when(
+                                    loading:
+                                        () => const Center(
+                                          child: CircularProgressIndicator(),
+                                        ),
+                                    error:
+                                        (e, st) =>
+                                            Center(child: Text('Error: $e')),
+                                    data:
+                                        (points) => LineChartSample4(
+                                          energyPoints: points,
+                                          mainLineColor: Color(0xFF354975),
+                                          belowLineColor: Color(
+                                            0xFF354975,
+                                          ).withOpacity(0.2),
+                                          aboveLineColor: Colors.white
+                                              .withOpacity(0.7),
+                                        ),
+                                  ),
                                 ),
                               ],
                             ),

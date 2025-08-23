@@ -188,4 +188,18 @@ class FirestoreRepository {
 
     await eventRef.delete();
   }
+
+  Future<void> deleteSubDocument({
+    required String parentCollectionPath,
+    required String parentDocId,
+    required String subcollectionPath,
+    required String subDocId,
+  }) async {
+    final subDocRef = _firestore
+        .collection(parentCollectionPath)
+        .doc(parentDocId)
+        .collection(subcollectionPath)
+        .doc(subDocId);
+    await subDocRef.delete();
+  }
 }

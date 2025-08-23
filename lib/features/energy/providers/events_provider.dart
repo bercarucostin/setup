@@ -18,8 +18,8 @@ final eventListProvider = AsyncNotifierProvider<EventNotifier, List<Event>>(
 );
 
 final defaultEventListProvider = FutureProvider<List<Event>>((ref) async {
-  final user = ref.watch(firebaseUserProvider);
-  if (user == null) return const <Event>[];
+  // final user = ref.watch(firebaseUserProvider);
+  final user = await ref.watch(signedInUserProvider.future);
 
   // WAIT for the user's profile doc to exist / be readable (same trick as insights)
   await ref.watch(firestoreUserProvider.future);
