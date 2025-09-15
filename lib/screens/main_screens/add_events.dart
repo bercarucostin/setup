@@ -112,6 +112,7 @@ class _AddEventsScreenState extends ConsumerState<AddEventsScreen> {
         body: Center(child: Text('Please sign in to add events.')),
       );
     }
+    print(user.email);
     final profileAsync = ref.watch(firestoreUserProvider);
     return profileAsync.when(
       loading:

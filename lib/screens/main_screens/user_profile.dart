@@ -278,6 +278,70 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
     }
   }
 
+  Widget _accountInfoTile({required String displayName, String? email}) {
+    String _initials(String name) {
+      final parts = name.trim().split(RegExp(r'\s+'));
+      if (parts.isEmpty) return '?';
+      final first = parts.first.isNotEmpty ? parts.first[0] : '';
+      final last =
+          parts.length > 1 && parts.last.isNotEmpty ? parts.last[0] : '';
+      return (first + last).toUpperCase();
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: const [
+          BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, 4)),
+        ],
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 14.0),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 20,
+            backgroundColor: Colors.grey.shade200,
+            child: Text(
+              _initials(displayName),
+              style: const TextStyle(
+                fontWeight: FontWeight.w600,
+                color: Colors.black87,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  displayName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                  ),
+                ),
+                if (email != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    email,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 13, color: Colors.black54),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final userAsync = ref.watch(authStateChangesProvider);
@@ -314,10 +378,20 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                             'Settings',
                             style: TextStyle(
                               fontSize: 28,
-                              fontWeight: FontWeight.bold,
                               fontFamily: 'Montserrat',
+                              fontWeight: FontWeight.w400,
                               color: Colors.black87,
                             ),
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20.0,
+                            vertical: 8.0,
+                          ),
+                          child: _accountInfoTile(
+                            displayName: displayName,
+                            email: userAsync.value?.email,
                           ),
                         ),
                         ...List.generate(_expanded.length, (index) {

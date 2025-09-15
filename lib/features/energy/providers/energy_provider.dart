@@ -39,7 +39,7 @@ final predictedEnergyProvider = FutureProvider<List<EnergyPoint>>((ref) async {
   int steps = 0;
   while (hour != model.bedHour && steps < 24) {
     pts.add(EnergyPoint(hour, model.predict(hour, events)));
-    print('Predicted energy at $hour: ${model.predict(hour, events)}');
+    //print('Predicted energy at $hour: ${model.predict(hour, events)}');
     hour = (hour + 1) % 24;
     steps++;
   }

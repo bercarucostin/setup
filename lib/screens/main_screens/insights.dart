@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:setup/features/energy/providers/energy_provider.dart';
 import 'package:setup/features/energy/widgets/chart.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:setup/features/energy/widgets/tiles.dart';
 
 /// A screen that displays the user’s energy prediction and feedback
 class InsightsScreen extends ConsumerStatefulWidget {
@@ -78,26 +79,26 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
                   Flexible(
                     flex: 4,
                     child: Padding(
-                      padding: const EdgeInsets.only(top: 32.0, bottom: 16.0),
+                      padding: const EdgeInsets.only(top: 0.0, bottom: 0.0),
                       child: Column(
                         children: [
                           Expanded(
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Padding(
-                                  padding: const EdgeInsets.fromLTRB(
-                                    0,
-                                    20,
-                                    0,
-                                    20,
-                                  ),
-                                  child: Column(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
-                                    children: [Text('Peak'), Text('Low')],
-                                  ),
-                                ),
+                                // Padding(
+                                //   padding: const EdgeInsets.fromLTRB(
+                                //     0,
+                                //     20,
+                                //     0,
+                                //     20,
+                                //   ),
+                                //   child: Column(
+                                //     mainAxisAlignment:
+                                //         MainAxisAlignment.spaceBetween,
+                                //     children: [Text('Peak'), Text('Low')],
+                                //   ),
+                                // ),
                                 Expanded(
                                   child: points.when(
                                     loading:
@@ -107,176 +108,262 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
                                     error:
                                         (e, st) =>
                                             Center(child: Text('Error: $e')),
-                                    data:
-                                        (points) => LineChartSample4(
-                                          energyPoints: points,
-                                          mainLineColor: Color(0xFF354975),
-                                          belowLineColor: Color(
-                                            0xFF354975,
-                                          ).withOpacity(0.2),
-                                          aboveLineColor: Colors.white
-                                              .withOpacity(0.7),
+                                    data: (_) {
+                                      return SafeArea(
+                                        child: Padding(
+                                          padding: const EdgeInsets.fromLTRB(
+                                            12,
+                                            12,
+                                            12,
+                                            0,
+                                          ),
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.stretch,
+                                            children: [
+                                              const EnergySectionHeader(
+                                                title:
+                                                    "Today’s Energy Forecast",
+                                                subtitle:
+                                                    "What to tackle in each window",
+                                              ),
+                                              const SizedBox(height: 8),
+                                              // The list is scrollable; Expanded gives it the remaining height.
+                                              Expanded(
+                                                child: points.when(
+                                                  loading:
+                                                      () => const Center(
+                                                        child:
+                                                            CircularProgressIndicator(),
+                                                      ),
+                                                  error:
+                                                      (e, st) => Center(
+                                                        child: Text(
+                                                          'Error: $e',
+                                                        ),
+                                                      ),
+                                                  data: (points) {
+                                                    final theme = Theme.of(
+                                                      context,
+                                                    );
+                                                    return Container(
+                                                      // A minimal card shell so the list has a clear, polished boundary
+                                                      decoration: BoxDecoration(
+                                                        color:
+                                                            theme
+                                                                .colorScheme
+                                                                .surface, // slightly different than scaffold white
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              16,
+                                                            ),
+                                                        border: Border.all(
+                                                          color: theme
+                                                              .colorScheme
+                                                              .outline
+                                                              .withOpacity(
+                                                                0.08,
+                                                              ),
+                                                        ),
+                                                        boxShadow: [
+                                                          BoxShadow(
+                                                            color: Colors.black
+                                                                .withOpacity(
+                                                                  0.04,
+                                                                ),
+                                                            blurRadius: 16,
+                                                            offset:
+                                                                const Offset(
+                                                                  0,
+                                                                  8,
+                                                                ),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                      clipBehavior:
+                                                          Clip.antiAlias, // make list content respect rounded corners
+                                                      child: Padding(
+                                                        // tiny bottom breathing room so last tile doesn't touch the edge
+                                                        padding:
+                                                            const EdgeInsets.only(
+                                                              bottom: 8,
+                                                            ),
+                                                        child: EnergyTileList(
+                                                          entries: points,
+                                                          density:
+                                                              EnergyTileDensity
+                                                                  .compact,
+                                                        ),
+                                                      ),
+                                                    );
+                                                  },
+                                                ),
+                                              ),
+                                            ],
+                                          ),
                                         ),
+                                      );
+                                    },
                                   ),
                                 ),
                               ],
                             ),
                           ),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 8.0),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                              children: [
-                                Text('Morning'),
-                                Text('Noon'),
-                                Text('Evening'),
-                              ],
-                            ),
-                          ),
+                          // Padding(
+                          //   padding: const EdgeInsets.symmetric(vertical: 8.0),
+                          //   child: Row(
+                          //     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          //     children: [
+                          //       Text('Morning'),
+                          //       Text('Noon'),
+                          //       Text('Evening'),
+                          //     ],
+                          //   ),
+                          // ),
                         ],
                       ),
                     ),
                   ),
                   // Add space between chart and feedback sections
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 10),
                   // Sleep quality feedback section (beautified)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8.0),
-                    child: Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(32),
-                        border: Border.all(color: Color(0xFF354975), width: 2),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black12,
-                            blurRadius: 8,
-                            offset: Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                        children: [
-                          Text(
-                            "How well did you sleep last night?",
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                            children: [
-                              _sleepButton("Awful"),
-                              _sleepButton("Okay"),
-                              _sleepButton("Great"),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
+                  // Padding(
+                  //   padding: const EdgeInsets.symmetric(vertical: 8.0),
+                  //   child: Container(
+                  //     width: double.infinity,
+                  //     padding: const EdgeInsets.all(20),
+                  //     decoration: BoxDecoration(
+                  //       color: Colors.white,
+                  //       borderRadius: BorderRadius.circular(32),
+                  //       border: Border.all(color: Color(0xFF354975), width: 2),
+                  //       boxShadow: [
+                  //         BoxShadow(
+                  //           color: Colors.black12,
+                  //           blurRadius: 8,
+                  //           offset: Offset(0, 4),
+                  //         ),
+                  //       ],
+                  //     ),
+                  //     child: Column(
+                  //       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  //       children: [
+                  //         Text(
+                  //           "How well did you sleep last night?",
+                  //           style: TextStyle(
+                  //             fontWeight: FontWeight.bold,
+                  //             fontSize: 16,
+                  //           ),
+                  //         ),
+                  //         const SizedBox(height: 12),
+                  //         Row(
+                  //           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  //           children: [
+                  //             _sleepButton("Awful"),
+                  //             _sleepButton("Okay"),
+                  //             _sleepButton("Great"),
+                  //           ],
+                  //         ),
+                  //       ],
+                  //     ),
+                  //   ),
+                  // ),
                   // Add more space before the last section
-                  const SizedBox(height: 24),
+                  // const SizedBox(height: 24),
                   // Energy feedback section (beautified)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 24.0),
-                    child: Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(32),
-                        border: Border.all(color: Color(0xFF354975), width: 2),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black12,
-                            blurRadius: 8,
-                            offset: Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                        children: [
-                          Text(
-                            "Give your energy feedback (0-100) for a specific hour (0-23):",
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                            children: [
-                              _numberField(_hourController, 'Hour', '0-23'),
-                              _numberField(
-                                _energyController,
-                                'Energy',
-                                '0-100',
-                              ),
-                              SizedBox(
-                                width: 90,
-                                height: 36,
-                                child: ElevatedButton(
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF354975),
-                                    foregroundColor: Colors.white,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(20),
-                                    ),
-                                    padding: EdgeInsets.zero,
-                                  ),
-                                  onPressed: () async {
-                                    final hour = int.tryParse(
-                                      _hourController.text,
-                                    );
-                                    final energy = double.tryParse(
-                                      _energyController.text,
-                                    );
-                                    if (hour == null || hour < 0 || hour > 23) {
-                                      _showSnack(
-                                        'Hour must be between 0 and 23',
-                                      );
-                                      return;
-                                    }
-                                    if (energy == null ||
-                                        energy < 0 ||
-                                        energy > 100) {
-                                      _showSnack(
-                                        'Energy must be between 0 and 100',
-                                      );
-                                      return;
-                                    }
-                                    if (user == null) {
-                                      _showSnack('User not authenticated');
-                                      return;
-                                    }
-                                    await notifier.updateModelWeights(
-                                      hour: hour,
-                                      actualEnergy: energy,
-                                    );
-                                    notifier.refreshModel();
-                                    _showSnack('Energy feedback submitted!');
-                                  },
-                                  child: const Text(
-                                    'Submit',
-                                    style: TextStyle(fontSize: 14),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
+                  // Padding(
+                  //   padding: const EdgeInsets.only(bottom: 24.0),
+                  //   child: Container(
+                  //     width: double.infinity,
+                  //     padding: const EdgeInsets.all(20),
+                  //     decoration: BoxDecoration(
+                  //       color: Colors.white,
+                  //       borderRadius: BorderRadius.circular(32),
+                  //       border: Border.all(color: Color(0xFF354975), width: 2),
+                  //       boxShadow: [
+                  //         BoxShadow(
+                  //           color: Colors.black12,
+                  //           blurRadius: 8,
+                  //           offset: Offset(0, 4),
+                  //         ),
+                  //       ],
+                  //     ),
+                  //     child: Column(
+                  //       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  //       children: [
+                  //         Text(
+                  //           "Give your energy feedback (0-100) for a specific hour (0-23):",
+                  //           textAlign: TextAlign.center,
+                  //           style: TextStyle(
+                  //             fontWeight: FontWeight.bold,
+                  //             fontSize: 16,
+                  //           ),
+                  //         ),
+                  //         const SizedBox(height: 12),
+                  //         Row(
+                  //           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  //           children: [
+                  //             _numberField(_hourController, 'Hour', '0-23'),
+                  //             _numberField(
+                  //               _energyController,
+                  //               'Energy',
+                  //               '0-100',
+                  //             ),
+                  //             SizedBox(
+                  //               width: 90,
+                  //               height: 36,
+                  //               child: ElevatedButton(
+                  //                 style: ElevatedButton.styleFrom(
+                  //                   backgroundColor: const Color(0xFF354975),
+                  //                   foregroundColor: Colors.white,
+                  //                   shape: RoundedRectangleBorder(
+                  //                     borderRadius: BorderRadius.circular(20),
+                  //                   ),
+                  //                   padding: EdgeInsets.zero,
+                  //                 ),
+                  //                 onPressed: () async {
+                  //                   final hour = int.tryParse(
+                  //                     _hourController.text,
+                  //                   );
+                  //                   final energy = double.tryParse(
+                  //                     _energyController.text,
+                  //                   );
+                  //                   if (hour == null || hour < 0 || hour > 23) {
+                  //                     _showSnack(
+                  //                       'Hour must be between 0 and 23',
+                  //                     );
+                  //                     return;
+                  //                   }
+                  //                   if (energy == null ||
+                  //                       energy < 0 ||
+                  //                       energy > 100) {
+                  //                     _showSnack(
+                  //                       'Energy must be between 0 and 100',
+                  //                     );
+                  //                     return;
+                  //                   }
+                  //                   if (user == null) {
+                  //                     _showSnack('User not authenticated');
+                  //                     return;
+                  //                   }
+                  //                   await notifier.updateModelWeights(
+                  //                     hour: hour,
+                  //                     actualEnergy: energy,
+                  //                   );
+                  //                   notifier.refreshModel();
+                  //                   _showSnack('Energy feedback submitted!');
+                  //                 },
+                  //                 child: const Text(
+                  //                   'Submit',
+                  //                   style: TextStyle(fontSize: 14),
+                  //                 ),
+                  //               ),
+                  //             ),
+                  //           ],
+                  //         ),
+                  //       ],
+                  //     ),
+                  //   ),
+                  // ),
                 ],
               ),
             ),
@@ -312,5 +399,43 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
 
   void _showSnack(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
+}
+
+class EnergySectionHeader extends StatelessWidget {
+  final String title;
+  final String? subtitle;
+  const EnergySectionHeader({super.key, required this.title, this.subtitle});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontFamily: 'Montserrat',
+              fontWeight: FontWeight.w400,
+            ),
+          ),
+          if (subtitle != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(
+                subtitle!,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurface.withOpacity(0.7),
+                  fontFamily: 'Montserrat',
+                  fontWeight: FontWeight.w400,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
   }
 }

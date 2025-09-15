@@ -46,7 +46,7 @@ class _HomeScreenState extends State<HomeScreen> {
               'Setup',
               style: TextStyle(
                 fontFamily: 'Montserrat',
-                fontWeight: FontWeight.bold,
+                fontWeight: FontWeight.w600,
               ),
             ),
             Align(
