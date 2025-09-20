@@ -106,13 +106,14 @@ class _AddEventsScreenState extends ConsumerState<AddEventsScreen> {
   @override
   Widget build(BuildContext context) {
     // Gate on auth + profile to avoid permission-denied
-    final user = ref.watch(firebaseUserProvider);
-    if (user == null) {
-      return const Scaffold(
-        body: Center(child: Text('Please sign in to add events.')),
-      );
-    }
-    print(user.email);
+    // final user = ref.watch(firebaseUserProvider);
+    final user = ref.watch(signedInUserProvider.future);
+    // if (user == null) {
+    //   return const Scaffold(
+    //     body: Center(child: Text('Please sign in to add events.')),
+    //   );
+    // }
+    // print(user.email);
     final profileAsync = ref.watch(firestoreUserProvider);
     return profileAsync.when(
       loading:

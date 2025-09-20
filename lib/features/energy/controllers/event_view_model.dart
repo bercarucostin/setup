@@ -15,8 +15,7 @@ final eventRepositoryProvider = Provider<EventRepository>((ref) {
 class EventNotifier extends AsyncNotifier<List<Event>> {
   @override
   Future<List<Event>> build() async {
-    final user = ref.watch(firebaseUserProvider);
-    if (user == null) return const <Event>[];
+    final user = await ref.watch(signedInUserProvider.future);
     // Fetch authenticated user info
     final repo = ref.read(eventRepositoryProvider);
 
