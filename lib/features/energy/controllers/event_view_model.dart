@@ -35,7 +35,7 @@ class EventNotifier extends AsyncNotifier<List<Event>> {
     required int startHour,
     required double duration,
   }) async {
-    final user = ref.read(firebaseUserProvider);
+    final user = await ref.watch(signedInUserProvider.future);
     if (user == null) {
       throw StateError('No user logged in.');
     }
@@ -60,7 +60,7 @@ class EventNotifier extends AsyncNotifier<List<Event>> {
     required String epochDay,
     required String eventId,
   }) async {
-    final user = ref.read(firebaseUserProvider);
+    final user = await ref.watch(signedInUserProvider.future);
     if (user == null) {
       throw StateError('No user logged in.');
     }

@@ -13,16 +13,16 @@ import '../repository/firebase_auth.dart';
 class AuthController extends Notifier<AuthState> {
   late final FirebaseAuthRepository _authRepository;
   late final FirestoreRepository _firestore;
-  StreamSubscription<User?>? _authSub;
 
   @override
   AuthState build() {
     _authRepository = ref.read(firebaseAuthRepositoryProvider);
     _firestore = ref.read(firestoreRepositoryProvider);
 
-    // Ensure we don't get multiple subscriptions if the provider is rebuilt
-    _authSub?.cancel();
-    _authSub = _authRepository.authStateChanges.listen((user) async {
+    // Listen to the repo's stream via the StreamProvider (no manual subscription)
+    ref.listen<AsyncValue<User?>>(authStateChangesProvider, (prev, next) async {
+      final user = next.valueOrNull;
+
       if (user == null) {
         state = Unauthenticated();
         return;
@@ -31,15 +31,18 @@ class AuthController extends Notifier<AuthState> {
       state = AuthLoading();
       try {
         final completed = await _hasCompletedProfile(user.uid);
+
+        // stale-guard: ignore if auth changed while we were awaiting
+        if (_authRepository.currentUser?.uid != user.uid) return;
+
         state = completed ? Authenticated(user) : IncompleteProfile(user);
       } catch (e) {
+        if (_authRepository.currentUser?.uid != user.uid) return;
         state = AuthError(_handleFirebaseError(e));
       }
     });
 
-    ref.onDispose(() => _authSub?.cancel());
-
-    // Immediate snapshot of current auth -> show a spinner while listener resolves Firestore
+    // Initial snapshot until Firestore check completes
     final u = _authRepository.currentUser;
     return u == null ? Unauthenticated() : AuthLoading();
   }
