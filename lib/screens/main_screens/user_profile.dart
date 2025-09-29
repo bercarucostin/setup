@@ -344,6 +344,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
 
   @override
   Widget build(BuildContext context) {
+    final signedInUser = ref.watch(signedInUserProvider.future);
     final userAsync = ref.watch(authStateChangesProvider);
     final profileAsync = ref.watch(userProfileDocProvider);
 

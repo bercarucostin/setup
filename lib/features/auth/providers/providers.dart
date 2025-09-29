@@ -14,12 +14,6 @@ final firebaseAuthRepositoryProvider = Provider<FirebaseAuthRepository>((ref) {
   return FirebaseAuthRepository();
 });
 
-/// Provides the current Firebase user.
-/// This is useful for accessing user details in the UI or other providers.
-final firebaseUserProvider = Provider<User?>((ref) {
-  return ref.watch(firebaseAuthRepositoryProvider).currentUser;
-});
-
 /// Provides the current authentication state changes as a stream.
 /// This is useful for listening to auth state changes in the UI.
 final authStateChangesProvider = StreamProvider<User?>((ref) {
@@ -67,4 +61,11 @@ final signedInUserProvider = FutureProvider.autoDispose<User>((ref) async {
       .where((u) => u != null)
       .map((u) => u!) // safe due to predicate
       .first; // completes when a user is available
+});
+
+/// Provides the current Firebase user.
+/// This is useful for accessing user details in the UI or other providers.
+final firebaseUserProvider = Provider<User?>((ref) {
+  ref.watch(signedInUserProvider);
+  return ref.watch(firebaseAuthRepositoryProvider).currentUser;
 });
