@@ -1,4 +1,6 @@
 // lib/features/energy/energy_providers.dart
+import 'dart:math';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:setup/features/energy/models/event.dart';
 import 'package:setup/features/firestore/providers/providers.dart';
@@ -35,9 +37,19 @@ final predictedEnergyProvider = FutureProvider<List<EnergyPoint>>((ref) async {
       .watch(eventListProvider.future)
       .catchError((_) => const <Event>[]);
   final pts = <EnergyPoint>[];
-  var hour = model.wakeHour;
+  int currentHour = DateTime.now().hour;
+  var hour = min(model.wakeHour, currentHour);
+
+  int diff = (model.bedHour - currentHour + 24) % 24;
+  bool isLater = diff > 0 && diff <= 12;
+  var maxHour;
+  if (isLater == true) {
+    maxHour = model.bedHour;
+  } else {
+    maxHour = currentHour;
+  }
   int steps = 0;
-  while (hour != model.bedHour && steps < 24) {
+  while (hour != maxHour && steps < 24) {
     pts.add(EnergyPoint(hour, model.predict(hour, events)));
     //print('Predicted energy at $hour: ${model.predict(hour, events)}');
     hour = (hour + 1) % 24;
