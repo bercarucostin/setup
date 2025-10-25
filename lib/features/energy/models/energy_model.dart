@@ -92,9 +92,10 @@ class EnergyModel {
   int _epochDay(DateTime dt) =>
       DateTime(dt.year, dt.month, dt.day).millisecondsSinceEpoch ~/ 86400000;
 
-  int _hoursSlept() {
+  int _hoursSlept(bool firstHour) {
     if (hoursSlept != null &&
         hoursSleptEpochDay != null &&
+        firstHour == true &&
         hoursSleptEpochDay == _epochDay(DateTime.now())) {
       return hoursSlept!;
     }
@@ -102,17 +103,18 @@ class EnergyModel {
     return (wakeHour - bedHour) % 24;
   }
 
-  double _computeS0() {
+  double _computeS0(bool firstHour) {
     if (sPrevNextEpochDay != null &&
+        firstHour == true &&
         sPrevNextEpochDay == _epochDay(DateTime.now())) {
       sPrev = sPrevNext;
     }
-    return sPrev * exp(-(_hoursSlept()) / tauSleep);
+    return sPrev * exp(-(_hoursSlept(firstHour)) / tauSleep);
   }
 
-  double _computeS(int hour) {
+  double _computeS(int hour, bool firstHour) {
     final int tAwake = (hour - wakeHour) % 24;
-    return 1 - (1 - _computeS0()) * exp(-tAwake / tau0);
+    return 1 - (1 - _computeS0(firstHour)) * exp(-tAwake / tau0);
   }
 
   double _computeC(int hour) {
@@ -125,15 +127,19 @@ class EnergyModel {
     this.hoursSleptEpochDay = _epochDay(DateTime.now());
   }
 
-  double predict(int hour, List<Event> events) {
-    final double S = _computeS(hour);
+  double predict(int hour, bool firstHour, bool lastHour, List<Event> events) {
+    final double S = _computeS(hour, firstHour);
     final double C = _computeC(hour);
 
-    if (hour == bedHour) {
+    if (lastHour) {
       sPrevNext = S;
-      sPrevNextEpochDay = _epochDay(
-        DateTime.now().add(const Duration(days: 1)),
-      );
+      if ([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].contains(hour)) {
+        sPrevNextEpochDay = _epochDay(DateTime.now());
+      } else {
+        sPrevNextEpochDay = _epochDay(
+          DateTime.now().add(const Duration(days: 1)),
+        );
+      }
     }
 
     final double base = wS * (1 - S) + wC * ((C + 1) / 2);
@@ -151,9 +157,9 @@ class EnergyModel {
   }
 
   void updateWeights(int hour, double actualEnergy, String userId) {
-    final double S = _computeS(hour);
+    final double S = _computeS(hour, false);
     final double C = _computeC(hour);
-    final double ePred = predict(hour, []);
+    final double ePred = predict(hour, false, false, []);
 
     // Map [0,100] -> [-1,1] for symmetric error surface
     final double rawPred = (ePred / 100.0) * 2.0 - 1.0;
@@ -196,10 +202,10 @@ class EnergyModel {
     tau0 = (tau0 - lrTau0 * error * dEtau0).clamp(12.0, 20.0).toDouble();
 
     // --- Update tauSleep (sleep dissipation) ---
-    final double S0 = _computeS0();
+    final double S0 = _computeS0(false);
     final double expAwake = exp(-tAwake / tau0);
     final double dEtauSleep =
-        -wS * expAwake * S0 * (_hoursSlept() / (tauSleep * tauSleep));
+        -wS * expAwake * S0 * (_hoursSlept(false) / (tauSleep * tauSleep));
     tauSleep =
         (tauSleep - lrTauSleep * error * dEtauSleep).clamp(3.0, 6.0).toDouble();
   }

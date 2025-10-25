@@ -23,6 +23,14 @@ final energyModelProvider =
       EnergyModelNotifier.new,
     );
 
+bool _isBetween(int hour, int start, int end) {
+  if (start <= end) {
+    return hour >= start && hour < end;
+  } else {
+    return hour >= start || hour < end;
+  }
+}
+
 /// Derived provider computing predicted energy points from the loaded model
 final predictedEnergyProvider = FutureProvider<List<EnergyPoint>>((ref) async {
   final user = await ref.watch(signedInUserProvider.future);
@@ -38,26 +46,34 @@ final predictedEnergyProvider = FutureProvider<List<EnergyPoint>>((ref) async {
       .catchError((_) => const <Event>[]);
   final pts = <EnergyPoint>[];
   int currentHour = DateTime.now().hour;
-  var hour = min(model.wakeHour, currentHour);
-
-  int diff = (model.bedHour - currentHour + 24) % 24;
-  bool isLater = diff > 0 && diff <= 12;
-  var maxHour;
-  if (isLater == true) {
-    maxHour = model.bedHour;
-  } else {
-    maxHour = currentHour;
+  int hour = model.wakeHour;
+  int maxHour = model.bedHour;
+  if (_isBetween(currentHour, hour, maxHour) == false) {
+    // if outside normal sleep hours
+    int afterBedHour = (currentHour - model.bedHour + 24) % 24;
+    int untilWakeHour = (model.wakeHour - currentHour + 24) % 24;
+    if (afterBedHour <= untilWakeHour) {
+      // if closer to bedtime, start from wakeTime to now
+      hour = model.wakeHour;
+      maxHour = currentHour;
+    } else {
+      // else start from now to bedtime
+      hour = currentHour;
+      maxHour = model.bedHour;
+    }
   }
-  int steps = 0;
-  while (hour != maxHour && steps < 24) {
-    pts.add(EnergyPoint(hour, model.predict(hour, events)));
+
+  while (hour != maxHour) {
+    bool firstHour = false;
+    if (hour == currentHour) {
+      firstHour = true;
+    }
+    pts.add(EnergyPoint(hour, model.predict(hour, firstHour, false, events)));
     //print('Predicted energy at $hour: ${model.predict(hour, events)}');
     hour = (hour + 1) % 24;
-    steps++;
   }
 
-  // Hit bedtime once to snapshot sPrevNext for tomorrow
-  model.predict(model.bedHour, events);
+  pts.add(EnergyPoint(hour, model.predict(maxHour, false, true, events)));
 
   // Fire-and-forget save of updated model (no await)
   Future.microtask(() {
