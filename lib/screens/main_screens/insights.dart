@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:setup/features/energy/models/energy_point.dart';
 import 'package:setup/features/energy/providers/energy_provider.dart';
 import 'package:setup/features/energy/widgets/chart.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -86,19 +87,6 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                // Padding(
-                                //   padding: const EdgeInsets.fromLTRB(
-                                //     0,
-                                //     20,
-                                //     0,
-                                //     20,
-                                //   ),
-                                //   child: Column(
-                                //     mainAxisAlignment:
-                                //         MainAxisAlignment.spaceBetween,
-                                //     children: [Text('Peak'), Text('Low')],
-                                //   ),
-                                // ),
                                 Expanded(
                                   child: points.when(
                                     loading:
@@ -146,6 +134,7 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
                                                     final theme = Theme.of(
                                                       context,
                                                     );
+
                                                     return Container(
                                                       // A minimal card shell so the list has a clear, polished boundary
                                                       decoration: BoxDecoration(
@@ -209,161 +198,11 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
                               ],
                             ),
                           ),
-                          // Padding(
-                          //   padding: const EdgeInsets.symmetric(vertical: 8.0),
-                          //   child: Row(
-                          //     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                          //     children: [
-                          //       Text('Morning'),
-                          //       Text('Noon'),
-                          //       Text('Evening'),
-                          //     ],
-                          //   ),
-                          // ),
                         ],
                       ),
                     ),
                   ),
-                  // Add space between chart and feedback sections
                   const SizedBox(height: 10),
-                  // Sleep quality feedback section (beautified)
-                  // Padding(
-                  //   padding: const EdgeInsets.symmetric(vertical: 8.0),
-                  //   child: Container(
-                  //     width: double.infinity,
-                  //     padding: const EdgeInsets.all(20),
-                  //     decoration: BoxDecoration(
-                  //       color: Colors.white,
-                  //       borderRadius: BorderRadius.circular(32),
-                  //       border: Border.all(color: Color(0xFF354975), width: 2),
-                  //       boxShadow: [
-                  //         BoxShadow(
-                  //           color: Colors.black12,
-                  //           blurRadius: 8,
-                  //           offset: Offset(0, 4),
-                  //         ),
-                  //       ],
-                  //     ),
-                  //     child: Column(
-                  //       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  //       children: [
-                  //         Text(
-                  //           "How well did you sleep last night?",
-                  //           style: TextStyle(
-                  //             fontWeight: FontWeight.bold,
-                  //             fontSize: 16,
-                  //           ),
-                  //         ),
-                  //         const SizedBox(height: 12),
-                  //         Row(
-                  //           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  //           children: [
-                  //             _sleepButton("Awful"),
-                  //             _sleepButton("Okay"),
-                  //             _sleepButton("Great"),
-                  //           ],
-                  //         ),
-                  //       ],
-                  //     ),
-                  //   ),
-                  // ),
-                  // Add more space before the last section
-                  // const SizedBox(height: 24),
-                  // Energy feedback section (beautified)
-                  // Padding(
-                  //   padding: const EdgeInsets.only(bottom: 24.0),
-                  //   child: Container(
-                  //     width: double.infinity,
-                  //     padding: const EdgeInsets.all(20),
-                  //     decoration: BoxDecoration(
-                  //       color: Colors.white,
-                  //       borderRadius: BorderRadius.circular(32),
-                  //       border: Border.all(color: Color(0xFF354975), width: 2),
-                  //       boxShadow: [
-                  //         BoxShadow(
-                  //           color: Colors.black12,
-                  //           blurRadius: 8,
-                  //           offset: Offset(0, 4),
-                  //         ),
-                  //       ],
-                  //     ),
-                  //     child: Column(
-                  //       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  //       children: [
-                  //         Text(
-                  //           "Give your energy feedback (0-100) for a specific hour (0-23):",
-                  //           textAlign: TextAlign.center,
-                  //           style: TextStyle(
-                  //             fontWeight: FontWeight.bold,
-                  //             fontSize: 16,
-                  //           ),
-                  //         ),
-                  //         const SizedBox(height: 12),
-                  //         Row(
-                  //           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  //           children: [
-                  //             _numberField(_hourController, 'Hour', '0-23'),
-                  //             _numberField(
-                  //               _energyController,
-                  //               'Energy',
-                  //               '0-100',
-                  //             ),
-                  //             SizedBox(
-                  //               width: 90,
-                  //               height: 36,
-                  //               child: ElevatedButton(
-                  //                 style: ElevatedButton.styleFrom(
-                  //                   backgroundColor: const Color(0xFF354975),
-                  //                   foregroundColor: Colors.white,
-                  //                   shape: RoundedRectangleBorder(
-                  //                     borderRadius: BorderRadius.circular(20),
-                  //                   ),
-                  //                   padding: EdgeInsets.zero,
-                  //                 ),
-                  //                 onPressed: () async {
-                  //                   final hour = int.tryParse(
-                  //                     _hourController.text,
-                  //                   );
-                  //                   final energy = double.tryParse(
-                  //                     _energyController.text,
-                  //                   );
-                  //                   if (hour == null || hour < 0 || hour > 23) {
-                  //                     _showSnack(
-                  //                       'Hour must be between 0 and 23',
-                  //                     );
-                  //                     return;
-                  //                   }
-                  //                   if (energy == null ||
-                  //                       energy < 0 ||
-                  //                       energy > 100) {
-                  //                     _showSnack(
-                  //                       'Energy must be between 0 and 100',
-                  //                     );
-                  //                     return;
-                  //                   }
-                  //                   if (user == null) {
-                  //                     _showSnack('User not authenticated');
-                  //                     return;
-                  //                   }
-                  //                   await notifier.updateModelWeights(
-                  //                     hour: hour,
-                  //                     actualEnergy: energy,
-                  //                   );
-                  //                   notifier.refreshModel();
-                  //                   _showSnack('Energy feedback submitted!');
-                  //                 },
-                  //                 child: const Text(
-                  //                   'Submit',
-                  //                   style: TextStyle(fontSize: 14),
-                  //                 ),
-                  //               ),
-                  //             ),
-                  //           ],
-                  //         ),
-                  //       ],
-                  //     ),
-                  //   ),
-                  // ),
                 ],
               ),
             ),
