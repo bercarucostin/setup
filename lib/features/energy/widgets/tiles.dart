@@ -27,7 +27,7 @@ class EnergyTileList extends StatelessWidget {
     required this.entries,
     this.onConfirm,
     this.onReject,
-    this.upcomingOnly = true,
+    this.upcomingOnly = false,
     this.fromHourOverride,
     this.density = EnergyTileDensity.compact, // 👈 default to compact
     this.listPadding,
@@ -39,7 +39,9 @@ class EnergyTileList extends StatelessWidget {
 
     final sorted = [...entries]..sort((a, b) => a.hour.compareTo(b.hour));
     final list =
-        upcomingOnly ? sorted.where((e) => e.hour > nowHour).toList() : sorted;
+        upcomingOnly
+            ? sorted.where((e) => e.hour > nowHour - 2).toList()
+            : sorted;
 
     final padding = listPadding ?? const EdgeInsets.fromLTRB(12, 12, 12, 72); //
 

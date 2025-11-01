@@ -648,7 +648,7 @@ class _IconTile extends StatelessWidget {
 }
 
 // ========================= History Tab =====================================
-// ========================= History Tab (sorted, no title) ===================
+
 class _HistoryTabBody extends ConsumerWidget {
   const _HistoryTabBody({super.key});
 
@@ -748,8 +748,7 @@ class _HistoryRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const double leftW =
-        76.0; // you can bump to 76–80 if you want extra breathing room
+    const double leftW = 76.0;
     const double rowMinHeight = 96.0;
 
     return ConstrainedBox(
@@ -790,8 +789,8 @@ class _HistoryRow extends StatelessWidget {
                   ),
                   // tiny corner badge (nudged inside; no clipping)
                   Positioned(
-                    right: 0, // 👈 was -4
-                    top: 0, // 👈 was -4
+                    right: 0,
+                    top: 0,
                     child: Container(
                       width: 18,
                       height: 18,

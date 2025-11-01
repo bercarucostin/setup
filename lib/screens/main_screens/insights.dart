@@ -135,6 +135,11 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
                                                       context,
                                                     );
 
+                                                    for (var p in points) {
+                                                      print(
+                                                        'Point: hour=${p.hour}, energy=${p.energy}',
+                                                      );
+                                                    }
                                                     return Container(
                                                       // A minimal card shell so the list has a clear, polished boundary
                                                       decoration: BoxDecoration(
