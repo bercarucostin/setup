@@ -4,6 +4,7 @@ import 'package:setup/screens/home_screen.dart';
 import 'package:setup/screens/auth/sign_in.dart';
 import 'package:setup/screens/auth/sign_up.dart';
 import 'package:setup/screens/profile_configuration/chronotype_screen.dart';
+import 'package:setup/screens/profile_configuration/onboarding_flow_screen.dart';
 import 'package:setup/screens/profile_configuration/sleep_schedule.dart';
 import 'package:setup/screens/profile_configuration/user_basic_information.dart';
 
@@ -24,17 +25,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/', builder: (_, __) => const HomeScreen()),
       GoRoute(path: '/login', builder: (_, __) => const SignInScreen()),
       GoRoute(path: '/signup', builder: (_, __) => const SignUpScreen()),
+
+      // NEW unified onboarding flow
       GoRoute(
-        path: '/complete-profile',
-        builder: (_, __) => const CompleteProfileScreen(),
-      ),
-      GoRoute(
-        path: '/chronotype',
-        builder: (context, state) => const ChronotypeScreen(),
-      ),
-      GoRoute(
-        path: '/sleep-schedule',
-        builder: (context, state) => const SleepScheduleScreen(),
+        path: '/onboarding',
+        builder: (_, __) => const OnboardingFlowScreen(),
       ),
     ],
   );

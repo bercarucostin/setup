@@ -10,6 +10,7 @@ class RouterNotifier extends ChangeNotifier {
   final Ref ref;
 
   RouterNotifier(this.ref) {
+    // Re-run redirects when auth state changes
     ref.listen<AuthState>(authControllerProvider, (_, __) => notifyListeners());
   }
 
@@ -17,24 +18,32 @@ class RouterNotifier extends ChangeNotifier {
     final authState = ref.read(authControllerProvider);
     final location = state.uri.toString();
 
-    final isLoggingIn = location == '/login' || location == '/signup';
-    final isCompletingProfile =
-        location.startsWith('/complete-profile') ||
-        location.startsWith('/chronotype') ||
-        location.startsWith('/sleep-schedule');
+    final isAuthFlow = location == '/login' || location == '/signup';
+    final isOnboardingFlow = location.startsWith('/onboarding');
 
-    if (authState is Unauthenticated && !isLoggingIn) {
-      return '/login';
+    // 1. Not signed in -> only allow /login or /signup
+    if (authState is Unauthenticated) {
+      if (!isAuthFlow) {
+        return '/login';
+      }
+      return null;
     }
 
-    if (authState is IncompleteProfile && !isCompletingProfile) {
-      return '/complete-profile';
+    // 2. Signed in BUT profile incomplete -> force /onboarding
+    if (authState is IncompleteProfile) {
+      if (!isOnboardingFlow) {
+        return '/onboarding';
+      }
+      return null;
     }
 
-    if (authState is Authenticated && isLoggingIn) {
+    // 3. Signed in AND profile complete
+    //    If they try to go back to /login or /signup, send them home
+    if (authState is Authenticated && isAuthFlow) {
       return '/';
     }
 
+    // 4. Otherwise allow navigation
     return null;
   }
 }
