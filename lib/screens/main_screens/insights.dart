@@ -14,12 +14,32 @@ class InsightsScreen extends ConsumerStatefulWidget {
 }
 
 class _InsightsScreenState extends ConsumerState<InsightsScreen> {
+  bool _didRefreshFeedback = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    // We only want to force-refresh today's feedback map once
+    // when this screen becomes active the first time.
+    if (!_didRefreshFeedback) {
+      _didRefreshFeedback = true;
+      // This is now safe to call here (not safe in initState()).
+      ref.invalidate(todayFeedbackMapProvider);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    // Trigger (re)fetch of energy model and predicted energy
     final energyAsync = ref.watch(energyModelProvider);
     final pointsAsync = ref.watch(predictedEnergyProvider);
-    final user =
-        FirebaseAuth.instance.currentUser; // still here if you need it later
+
+    // ALSO trigger (re)fetch of today's feedback map so tiles can use it.
+    // Now that we're in build(), this is legal and will run after invalidate().
+    ref.watch(todayFeedbackMapProvider);
+
+    final user = FirebaseAuth.instance.currentUser;
 
     return Scaffold(
       body: energyAsync.when(
@@ -32,14 +52,13 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Header
                   const EnergySectionHeader(
                     title: "Today’s Energy Forecast",
                     subtitle: "What to tackle in each window",
                   ),
                   const SizedBox(height: 12),
 
-                  // Card with scrollable tile list
+                  // Main card with scrollable tile list
                   Expanded(
                     child: pointsAsync.when(
                       loading:
@@ -47,12 +66,6 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
                               const Center(child: CircularProgressIndicator()),
                       error: (e, st) => Center(child: Text('Error: $e')),
                       data: (List<EnergyPoint> points) {
-                        // debug print
-                        for (var p in points) {
-                          // ignore: avoid_print
-                          print('Point: hour=${p.hour}, energy=${p.energy}');
-                        }
-
                         final theme = Theme.of(context);
 
                         return Container(

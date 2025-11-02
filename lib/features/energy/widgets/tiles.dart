@@ -279,25 +279,49 @@ class _EnergyTileWithFeedbackShellState
   void initState() {
     super.initState();
 
-    // If we already had feedback from Firestore, preload it.
+    // Initial mount: preload whatever Firestore already had.
     _selectedFeedback = widget.existingFeedback;
 
-    // Show sidebar only if allowed AND we don't already have feedback.
+    // Sidebar only shows if it's a past/now hour AND we don't already have feedback.
     _showSidebar =
         widget.showFeedbackBarInitially && widget.existingFeedback == null;
   }
 
+  @override
+  void didUpdateWidget(covariant _EnergyTileWithFeedbackShell oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    // Case: parent rebuilt with new Firestore data (e.g. you navigated away/back
+    // and todayFeedbackMapProvider now contains the saved feedback)
+    final oldFb = oldWidget.existingFeedback;
+    final newFb = widget.existingFeedback;
+
+    if (oldFb != newFb) {
+      // Sync local selection to latest known feedback
+      _selectedFeedback = newFb;
+
+      // If we now HAVE feedback, hide sidebar.
+      // If we now DON'T, show it again based on showFeedbackBarInitially.
+      _showSidebar = (newFb == null) && widget.showFeedbackBarInitially;
+
+      setState(() {});
+    }
+  }
+
   Future<void> _handleSidebarTap(feedback_model.EnergyFeedback fb) async {
-    // optimistic UI
+    // optimistic UI: lock in feedback locally and hide bar instantly
     setState(() {
       _selectedFeedback = fb;
       _showSidebar = false;
     });
 
-    // persist through callback (which hits Firestore in parent list)
+    // persist to Firestore
     if (widget.onSidebarFeedback != null) {
       await widget.onSidebarFeedback!(fb);
     }
+
+    // NOTE: after save, the provider will eventually return this feedback,
+    // and didUpdateWidget above will keep things in sync on future rebuilds.
   }
 
   @override
@@ -306,8 +330,7 @@ class _EnergyTileWithFeedbackShellState
     final double sidebarWidth = compact ? 44.0 : 52.0;
     final double sidebarGap = compact ? 8.0 : 10.0;
 
-    // If sidebar is hidden right now (either future hour, or after submit,
-    // or because we loaded previous feedback), just render the tile.
+    // If sidebar is hidden (already gave feedback / future hour / etc.)
     if (!_showSidebar) {
       return EnergyTile(
         hour: widget.hour,
@@ -320,7 +343,7 @@ class _EnergyTileWithFeedbackShellState
       );
     }
 
-    // Sidebar visible (no previous feedback yet, and it's a past/now hour)
+    // Otherwise, render tile + sidebar chooser
     return IntrinsicHeight(
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
