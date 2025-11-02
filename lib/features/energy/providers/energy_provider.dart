@@ -2,6 +2,7 @@
 import 'dart:math';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:setup/features/energy/models/energy_feedback.dart';
 import 'package:setup/features/energy/models/event.dart';
 import 'package:setup/features/firestore/providers/providers.dart';
 import 'package:setup/features/energy/repository/energy_repository.dart';
@@ -81,3 +82,17 @@ final predictedEnergyProvider = FutureProvider<List<EnergyPoint>>((ref) async {
   });
   return pts;
 });
+
+// Map<int hour, EnergyFeedbackRecord> for TODAY
+final todayFeedbackMapProvider = FutureProvider<Map<int, EnergyFeedbackRecord>>(
+  (ref) async {
+    // get user
+    final user = await ref.watch(signedInUserProvider.future);
+    if (user == null) {
+      return <int, EnergyFeedbackRecord>{};
+    }
+
+    final repo = ref.read(energyRepositoryProvider);
+    return repo.fetchUserEnergyFeedbackForToday(user.uid);
+  },
+);
