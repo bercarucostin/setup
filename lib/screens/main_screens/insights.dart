@@ -1,10 +1,14 @@
+// lib/features/energy/screens/insights_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import 'package:setup/features/energy/models/energy_point.dart';
 import 'package:setup/features/energy/providers/energy_provider.dart';
+import 'package:setup/features/energy/widgets/compact_insights.dart';
 import 'package:setup/features/energy/widgets/tiles.dart';
+
+enum InsightsView { detailed, compact }
 
 class InsightsScreen extends ConsumerStatefulWidget {
   const InsightsScreen({super.key});
@@ -15,31 +19,24 @@ class InsightsScreen extends ConsumerStatefulWidget {
 
 class _InsightsScreenState extends ConsumerState<InsightsScreen> {
   bool _didRefreshFeedback = false;
+  InsightsView _view = InsightsView.detailed;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-
-    // We only want to force-refresh today's feedback map once
-    // when this screen becomes active the first time.
     if (!_didRefreshFeedback) {
       _didRefreshFeedback = true;
-      // This is now safe to call here (not safe in initState()).
       ref.invalidate(todayFeedbackMapProvider);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // Trigger (re)fetch of energy model and predicted energy
     final energyAsync = ref.watch(energyModelProvider);
     final pointsAsync = ref.watch(predictedEnergyProvider);
-
-    // ALSO trigger (re)fetch of today's feedback map so tiles can use it.
-    // Now that we're in build(), this is legal and will run after invalidate().
     ref.watch(todayFeedbackMapProvider);
 
-    final user = FirebaseAuth.instance.currentUser;
+    final theme = Theme.of(context);
 
     return Scaffold(
       body: energyAsync.when(
@@ -52,13 +49,27 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const EnergySectionHeader(
-                    title: "Today’s Energy Forecast",
-                    subtitle: "What to tackle in each window",
+                  // Header row (title + toggle)
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      const Expanded(
+                        child: _HeaderTitle(
+                          title: "Today’s Energy Forecast",
+                          subtitle: "What to tackle in each window",
+                        ),
+                      ),
+                      _IconToggle(
+                        view: _view,
+                        onChanged: (v) => setState(() => _view = v),
+                      ),
+                    ],
                   ),
+
                   const SizedBox(height: 12),
 
-                  // Main card with scrollable tile list
+                  // --- Main content area ---
                   Expanded(
                     child: pointsAsync.when(
                       loading:
@@ -66,8 +77,6 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
                               const Center(child: CircularProgressIndicator()),
                       error: (e, st) => Center(child: Text('Error: $e')),
                       data: (List<EnergyPoint> points) {
-                        final theme = Theme.of(context);
-
                         return Container(
                           decoration: BoxDecoration(
                             color: theme.colorScheme.surface,
@@ -88,17 +97,27 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
                           clipBehavior: Clip.antiAlias,
                           child: Padding(
                             padding: const EdgeInsets.only(bottom: 8),
-                            child: EnergyTileList(
-                              entries: points,
-                              density: EnergyTileDensity.compact,
+                            child: AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 250),
+                              switchInCurve: Curves.easeInOutCubic,
+                              switchOutCurve: Curves.easeInOutCubic,
+                              child:
+                                  _view == InsightsView.detailed
+                                      ? EnergyTileList(
+                                        key: const ValueKey('detailed'),
+                                        entries: points,
+                                        density: EnergyTileDensity.compact,
+                                      )
+                                      : CompactInsightsGrid(
+                                        key: const ValueKey('compact'),
+                                        points: points,
+                                      ),
                             ),
                           ),
                         );
                       },
                     ),
                   ),
-
-                  const SizedBox(height: 12),
                 ],
               ),
             ),
@@ -109,25 +128,27 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
   }
 }
 
-class EnergySectionHeader extends StatelessWidget {
+/// --- Title & Subtitle with proper layout ---
+class _HeaderTitle extends StatelessWidget {
   final String title;
   final String? subtitle;
-  const EnergySectionHeader({super.key, required this.title, this.subtitle});
+  const _HeaderTitle({required this.title, this.subtitle});
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 0, 12, 6),
+      padding: const EdgeInsets.only(right: 8.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             title,
+            overflow: TextOverflow.ellipsis,
             style: theme.textTheme.titleLarge?.copyWith(
               fontFamily: 'Montserrat',
-              fontWeight: FontWeight.w400,
+              fontWeight: FontWeight.w500,
             ),
           ),
           if (subtitle != null)
@@ -139,11 +160,84 @@ class EnergySectionHeader extends StatelessWidget {
                   color: theme.colorScheme.onSurface.withOpacity(0.7),
                   fontFamily: 'Montserrat',
                   fontWeight: FontWeight.w400,
+                  fontSize: 12.5,
                 ),
               ),
             ),
         ],
       ),
+    );
+  }
+}
+
+/// --- Compact Inline Icon Toggle ---
+class _IconToggle extends StatelessWidget {
+  final InsightsView view;
+  final ValueChanged<InsightsView> onChanged;
+  const _IconToggle({required this.view, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    const appBarColor = Color(0xFF354975); // same as your AppBar color
+    final cs = Theme.of(context).colorScheme;
+
+    Widget circleButton({
+      required IconData icon,
+      required bool selected,
+      required VoidCallback onTap,
+    }) {
+      return InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(24),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          height: 28,
+          width: 28,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: selected ? appBarColor : cs.surfaceVariant.withOpacity(0.2),
+            border:
+                selected
+                    ? null
+                    : Border.all(
+                      color: cs.outlineVariant.withOpacity(0.4),
+                      width: 1.0,
+                    ),
+            boxShadow:
+                selected
+                    ? [
+                      BoxShadow(
+                        color: appBarColor.withOpacity(0.4),
+                        blurRadius: 5,
+                        spreadRadius: 0.5,
+                      ),
+                    ]
+                    : null,
+          ),
+          child: Icon(
+            icon,
+            size: 15,
+            color: selected ? Colors.white : cs.onSurface.withOpacity(0.8),
+          ),
+        ),
+      );
+    }
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        circleButton(
+          icon: Icons.view_list_rounded,
+          selected: view == InsightsView.detailed,
+          onTap: () => onChanged(InsightsView.detailed),
+        ),
+        const SizedBox(width: 6),
+        circleButton(
+          icon: Icons.grid_view_rounded,
+          selected: view == InsightsView.compact,
+          onTap: () => onChanged(InsightsView.compact),
+        ),
+      ],
     );
   }
 }
