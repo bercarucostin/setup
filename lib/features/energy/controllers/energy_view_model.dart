@@ -63,23 +63,23 @@ class EnergyModelNotifier extends AsyncNotifier<EnergyModel?> {
   }
 
   /// Persist updated energy measurement back to Firestore
-  Future<void> updateHoursSlept({required int hoursSlept}) async {
-    final model = state.value;
-    final user = ref.read(firebaseUserProvider);
-    if (model == null || user == null) {
-      throw StateError('No model loaded to update');
-    }
+  // Future<void> updateHoursSlept({required int hoursSlept}) async {
+  //   final model = state.value;
+  //   final user = ref.read(firebaseUserProvider);
+  //   if (model == null || user == null) {
+  //     throw StateError('No model loaded to update');
+  //   }
 
-    // Update in memory
-    model.updateHoursSlept(hoursSlept);
+  //   // Update in memory
+  //   // model.updateHoursSlept(hoursSlept);
 
-    // Save whole model
-    final repo = ref.read(energyRepositoryProvider);
-    await repo.saveEnergyModel(user.uid, model);
+  //   // Save whole model
+  //   final repo = ref.read(energyRepositoryProvider);
+  //   await repo.saveEnergyModel(user.uid, model);
 
-    // Emit updated model
-    state = AsyncData(model);
-  }
+  //   // Emit updated model
+  //   state = AsyncData(model);
+  // }
 
   Future<void> deleteModel(String userId) async {
     final repo = ref.read(energyRepositoryProvider);

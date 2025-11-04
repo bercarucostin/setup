@@ -47,29 +47,28 @@ final predictedEnergyProvider = FutureProvider<List<EnergyPoint>>((ref) async {
       .catchError((_) => const <Event>[]);
   final pts = <EnergyPoint>[];
   int currentHour = DateTime.now().hour;
-  int hour = model.wakeHour;
-  int maxHour = model.bedHour;
+  int hour = model.defaultWakeHour;
+  int maxHour = model.defaultBedHour;
   if (_isBetween(currentHour, hour, maxHour) == false) {
     // if outside normal sleep hours
-    int afterBedHour = (currentHour - model.bedHour + 24) % 24;
-    int untilWakeHour = (model.wakeHour - currentHour + 24) % 24;
+    int afterBedHour = (currentHour - model.defaultBedHour + 24) % 24;
+    int untilWakeHour = (model.defaultWakeHour - currentHour + 24) % 24;
     if (afterBedHour <= untilWakeHour) {
       // if closer to bedtime, start from wakeTime to now
-      hour = model.wakeHour;
+      hour = model.defaultWakeHour;
       maxHour = currentHour;
     } else {
       // else start from now to bedtime
       hour = currentHour;
-      maxHour = model.bedHour;
+      maxHour = model.defaultBedHour;
     }
   }
 
+  pts.add(EnergyPoint(hour, model.predict(hour, true, false, events)));
+  hour = (hour + 1) % 24;
+
   while (hour != maxHour) {
-    bool firstHour = false;
-    if (hour == currentHour) {
-      firstHour = true;
-    }
-    pts.add(EnergyPoint(hour, model.predict(hour, firstHour, false, events)));
+    pts.add(EnergyPoint(hour, model.predict(hour, false, false, events)));
     //print('Predicted energy at $hour: ${model.predict(hour, events)}');
     hour = (hour + 1) % 24;
   }

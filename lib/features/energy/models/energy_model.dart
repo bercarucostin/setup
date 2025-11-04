@@ -2,13 +2,16 @@ import 'dart:math';
 import 'event.dart';
 
 class EnergyModel {
-  int bedHour; // Added bedHour to match the original model
-  int wakeHour;
+  int defaultBedHour; // Added bedHour to match the original model
+  int defaultWakeHour;
+  int? wakeHour;
+  int? bedHour;
+  int? bedHourLastDay;
+  int? bedHourLastDayEpochDay;
   int? hoursSlept;
-  int? hoursSleptEpochDay; // which epoch-day (local) this hoursSlept applies to
   num circadianPeak;
   double sPrev;
-  double sPrevNext;
+  double? sPrevNext;
   int? sPrevNextEpochDay; // which epoch-day (local) this sPrevNext applies to
   double sPrevDefault;
   double wS;
@@ -22,14 +25,17 @@ class EnergyModel {
   double lrTauSleep;
 
   EnergyModel({
-    required this.bedHour,
-    required this.wakeHour,
+    required this.defaultBedHour,
+    required this.defaultWakeHour,
+    this.wakeHour,
+    this.bedHour,
+    this.bedHourLastDay,
+    this.bedHourLastDayEpochDay,
     this.hoursSlept,
-    this.hoursSleptEpochDay,
     required this.circadianPeak,
     required this.sPrev,
-    required this.sPrevNext,
-    required this.sPrevNextEpochDay,
+    this.sPrevNext,
+    this.sPrevNextEpochDay,
     required this.sPrevDefault,
     required this.wS,
     required this.wC,
@@ -47,14 +53,16 @@ class EnergyModel {
     Map<String, dynamic> energyModelData,
   ) {
     return EnergyModel(
-      wakeHour: userData['wakeHour'],
-      bedHour: userData['bedHour'],
+      defaultWakeHour: userData['wakeHour'],
+      defaultBedHour: userData['bedHour'],
+      bedHour: energyModelData['bedHour'] ?? userData['bedHour'],
+      wakeHour: energyModelData['wakeHour'] ?? userData['wakeHour'],
+      bedHourLastDay: energyModelData['bedHourLastDay'],
+      bedHourLastDayEpochDay: energyModelData['bedHourLastDayEpochDay'],
       hoursSlept: energyModelData['hoursSlept'],
-      hoursSleptEpochDay: energyModelData['hoursSleptEpochDay'],
       circadianPeak: energyModelData['circadianPeak'],
-      sPrev: energyModelData['sPrev'] ?? energyModelData['sPrevDefault'],
-      sPrevNext:
-          energyModelData['sPrevNext'] ?? energyModelData['sPrevDefault'],
+      sPrev: energyModelData['sPrev'],
+      sPrevNext: energyModelData['sPrevNext'],
       sPrevNextEpochDay: energyModelData['sPrevNextEpochDay'],
       sPrevDefault: energyModelData['sPrevDefault'],
       wS: energyModelData['wS'],
@@ -71,8 +79,11 @@ class EnergyModel {
   // Convert EnergyModel to Firestore data
   Map<String, dynamic> toFirestore() {
     return {
+      'wakeHour': wakeHour,
+      'bedHour': bedHour,
+      'bedHourLastDay': bedHourLastDay,
+      'bedHourLastDayEpochDay': bedHourLastDayEpochDay,
       'hoursSlept': hoursSlept,
-      'hoursSleptEpochDay': hoursSleptEpochDay,
       'circadianPeak': circadianPeak,
       'sPrev': sPrev,
       'sPrevNext': sPrevNext,
@@ -92,29 +103,13 @@ class EnergyModel {
   int _epochDay(DateTime dt) =>
       DateTime(dt.year, dt.month, dt.day).millisecondsSinceEpoch ~/ 86400000;
 
-  int _hoursSlept(bool firstHour) {
-    if (hoursSlept != null &&
-        hoursSleptEpochDay != null &&
-        firstHour == true &&
-        hoursSleptEpochDay == _epochDay(DateTime.now())) {
-      return hoursSlept!;
-    }
-    // Calculate hours slept based on wakeHour and bedHour
-    return (wakeHour - bedHour) % 24;
+  double _computeS0() {
+    return sPrev * exp((0 - hoursSlept!) / tauSleep);
   }
 
-  double _computeS0(bool firstHour) {
-    if (sPrevNextEpochDay != null &&
-        firstHour == true &&
-        sPrevNextEpochDay == _epochDay(DateTime.now())) {
-      sPrev = sPrevNext;
-    }
-    return sPrev * exp(-(_hoursSlept(firstHour)) / tauSleep);
-  }
-
-  double _computeS(int hour, bool firstHour) {
-    final int tAwake = (hour - wakeHour) % 24;
-    return 1 - (1 - _computeS0(firstHour)) * exp(-tAwake / tau0);
+  double _computeS(int hour) {
+    final int tAwake = (hour - (wakeHour ?? defaultWakeHour)) % 24;
+    return 1 - (1 - _computeS0()) * exp(-tAwake / tau0);
   }
 
   double _computeC(int hour) {
@@ -122,21 +117,46 @@ class EnergyModel {
     return sin(2 * pi * (hour - circadianPeak) / 24 + pi / 2);
   }
 
-  void updateHoursSlept(int hoursSlept) {
-    this.hoursSlept = hoursSlept;
-    this.hoursSleptEpochDay = _epochDay(DateTime.now());
-  }
+  // void updateHoursSlept(int hoursSlept) {
+  //   this.hoursSlept = hoursSlept;
+  //   this.hoursSleptEpochDay = _epochDay(DateTime.now());
+  // }
 
   double predict(int hour, bool firstHour, bool lastHour, List<Event> events) {
-    final double S = _computeS(hour, firstHour);
+    if (firstHour == true) {
+      // sPrev update
+      if (sPrevNextEpochDay != null &&
+          sPrevNextEpochDay == _epochDay(DateTime.now())) {
+        sPrev = sPrevNext!;
+      } else {
+        sPrev = sPrevDefault;
+      }
+
+      // hoursSlept update
+      if (bedHourLastDayEpochDay != null &&
+          bedHourLastDayEpochDay == _epochDay(DateTime.now())) {
+        bedHour = bedHourLastDay!;
+      } else {
+        bedHour = defaultBedHour;
+      }
+      wakeHour = hour;
+      hoursSlept = (hour - bedHour!) % 24;
+    }
+
+    final double S = _computeS(hour);
     final double C = _computeC(hour);
 
     if (lastHour) {
       sPrevNext = S;
+      bedHourLastDay = hour;
       if ([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].contains(hour)) {
         sPrevNextEpochDay = _epochDay(DateTime.now());
+        bedHourLastDayEpochDay = _epochDay(DateTime.now());
       } else {
         sPrevNextEpochDay = _epochDay(
+          DateTime.now().add(const Duration(days: 1)),
+        );
+        bedHourLastDayEpochDay = _epochDay(
           DateTime.now().add(const Duration(days: 1)),
         );
       }
@@ -157,7 +177,7 @@ class EnergyModel {
   }
 
   void updateWeights(int hour, double actualEnergy, String userId) {
-    final double S = _computeS(hour, false);
+    final double S = _computeS(hour);
     final double C = _computeC(hour);
     final double ePred = predict(hour, false, false, []);
 
@@ -197,15 +217,19 @@ class EnergyModel {
     circadianPeak = (((newPeak % 24.0) + 24.0) % 24.0).toDouble();
 
     // --- Update tau0 (wake time constant) ---
-    final int tAwake = max(hour - wakeHour, 0);
+    final int tAwake = max(hour - (wakeHour ?? defaultWakeHour), 0);
     final double dEtau0 = wS * (1.0 - S) * (tAwake / (tau0 * tau0));
     tau0 = (tau0 - lrTau0 * error * dEtau0).clamp(12.0, 20.0).toDouble();
 
     // --- Update tauSleep (sleep dissipation) ---
-    final double S0 = _computeS0(false);
+    final double S0 = _computeS0();
     final double expAwake = exp(-tAwake / tau0);
     final double dEtauSleep =
-        -wS * expAwake * S0 * (_hoursSlept(false) / (tauSleep * tauSleep));
+        -wS *
+        expAwake *
+        S0 *
+        ((hoursSlept ?? (defaultWakeHour - defaultBedHour) % 24) /
+            (tauSleep * tauSleep));
     tauSleep =
         (tauSleep - lrTauSleep * error * dEtauSleep).clamp(3.0, 6.0).toDouble();
   }
