@@ -16,6 +16,32 @@ import 'package:setup/features/energy/repository/energy_repository.dart';
 /// Controls tile size & spacing.
 enum EnergyTileDensity { comfortable, compact }
 
+int _offsetFromStart(int hour, int start) => (hour - start + 24) % 24;
+
+/// Returns the cut index in `entries`:
+///  - If the current hour exists in the list, returns its index (so items before it are "past").
+///  - Otherwise, returns the index of the first *future* item after `nowHour` in the cycle.
+///  - If all items are in the past, returns entries.length (everything gets buttons).
+int _findCutIndex(List<EnergyPoint> entries, int nowHour) {
+  if (entries.isEmpty) return 0;
+  final start = entries.first.hour;
+  final nowOff = _offsetFromStart(nowHour, start);
+
+  // Prefer exact match (current hour)
+  for (int i = 0; i < entries.length; i++) {
+    if (entries[i].hour == nowHour) return i;
+  }
+
+  // Otherwise, first future hour after "now" in the cyclic order
+  for (int i = 0; i < entries.length; i++) {
+    final off = _offsetFromStart(entries[i].hour, start);
+    if (off > nowOff) return i;
+  }
+
+  // All are past
+  return entries.length;
+}
+
 String _feedbackDebugDescription(feedback_model.EnergyFeedback fb) {
   switch (fb) {
     case feedback_model.EnergyFeedback.muchHigher:
@@ -72,12 +98,19 @@ class EnergyTileList extends ConsumerWidget {
     final todayFeedbackAsync = ref.watch(todayFeedbackMapProvider);
     // We'll unwrap it inside the builder below so UI still renders if loading.
 
-    // 2. sort and filter entries like before
-    final sorted = [...entries]..sort((a, b) => a.hour.compareTo(b.hour));
+    // for (var e in entries) {
+    //   debugPrint("TileList entry: hour=${e.hour}, energy=${e.energy}");
+    // }
+
+    // keep original order (no sorting)
+    final source = entries;
     final visibleList =
         upcomingOnly
-            ? sorted.where((e) => e.hour > nowHour - 2).toList()
-            : sorted;
+            ? source.where((e) => e.hour > nowHour - 2).toList()
+            : source;
+
+    // compute where "now" sits relative to this *list*
+    final cutIndex = _findCutIndex(visibleList, nowHour);
 
     final padding = listPadding ?? const EdgeInsets.fromLTRB(12, 12, 12, 72);
 
@@ -112,6 +145,7 @@ class EnergyTileList extends ConsumerWidget {
           userId: userId,
           energyRepo: energyRepo,
           existingFeedbackMap: emptyMap,
+          cutIndex: cutIndex,
         );
       },
       error: (err, stack) {
@@ -126,6 +160,7 @@ class EnergyTileList extends ConsumerWidget {
           userId: userId,
           energyRepo: energyRepo,
           existingFeedbackMap: emptyMap,
+          cutIndex: cutIndex,
         );
       },
       data: (feedbackMap) {
@@ -138,6 +173,7 @@ class EnergyTileList extends ConsumerWidget {
           userId: userId,
           energyRepo: energyRepo,
           existingFeedbackMap: feedbackMap,
+          cutIndex: cutIndex,
         );
       },
     );
@@ -152,6 +188,8 @@ class EnergyTileList extends ConsumerWidget {
     required String? userId,
     required EnergyRepository energyRepo,
     required Map<int, EnergyFeedbackRecord> existingFeedbackMap,
+    required int
+    cutIndex, // items with index < cutIndex are "past" in this list
   }) {
     return ListView.separated(
       padding: padding,
@@ -160,22 +198,21 @@ class EnergyTileList extends ConsumerWidget {
       itemBuilder: (context, i) {
         final point = visibleList[i];
 
-        // did we already submit feedback for this hour today?
+        // Did we already submit feedback for this hour today?
         final existingRecord = existingFeedbackMap[point.hour];
         final feedbackAlreadyGiven = existingRecord?.feedback;
 
-        // we only want the sidebar if:
-        // - this hour is "past or now"
-        // - and we DO NOT already have feedback
+        // Show sidebar only for list items STRICTLY BEFORE the cutIndex (i < cutIndex),
+        // and only if we don't already have feedback for that hour.
         final bool shouldShowFeedbackBar =
-            (point.hour <= nowHour) && (feedbackAlreadyGiven == null);
+            (i < cutIndex) && (feedbackAlreadyGiven == null);
 
         return _EnergyTileWithFeedbackShell(
           hour: point.hour,
           energy: point.energy,
           density: density,
 
-          // NEW: pass pre-existing feedback from Firestore if any
+          // Pass pre-existing feedback from Firestore if any
           existingFeedback: feedbackAlreadyGiven,
 
           showFeedbackBarInitially: shouldShowFeedbackBar,
@@ -204,6 +241,7 @@ class EnergyTileList extends ConsumerWidget {
               record: record,
             );
 
+            // Optional: nudge "actual" for training based on feedback type
             var adjustedEnergy = point.energy;
             switch (fb) {
               case feedback_model.EnergyFeedback.muchHigher:
@@ -215,8 +253,7 @@ class EnergyTileList extends ConsumerWidget {
               case feedback_model.EnergyFeedback.muchLower:
                 adjustedEnergy -= 10;
               case feedback_model.EnergyFeedback.match:
-                // no change
-                break;
+                break; // no change
             }
 
             await model.updateModelWeights(

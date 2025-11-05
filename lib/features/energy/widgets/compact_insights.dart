@@ -45,7 +45,7 @@ class _CompactInsightsGridState extends State<CompactInsightsGrid> {
 
   @override
   Widget build(BuildContext context) {
-    final sorted = [...widget.points]..sort((a, b) => a.hour.compareTo(b.hour));
+    final sorted = widget.points;
 
     return LayoutBuilder(
       builder: (context, constraints) {
