@@ -16,6 +16,29 @@ import 'package:setup/features/energy/repository/energy_repository.dart';
 /// Controls tile size & spacing.
 enum EnergyTileDensity { comfortable, compact }
 
+const _kGreyscaleFilter = ColorFilter.matrix(<double>[
+  0.2126,
+  0.7152,
+  0.0722,
+  0,
+  0,
+  0.2126,
+  0.7152,
+  0.0722,
+  0,
+  0,
+  0.2126,
+  0.7152,
+  0.0722,
+  0,
+  0,
+  0,
+  0,
+  0,
+  1,
+  0,
+]);
+
 int _offsetFromStart(int hour, int start) => (hour - start + 24) % 24;
 
 /// Returns the cut index in `entries`:
@@ -436,6 +459,12 @@ class _EnergyTileWithFeedbackShellState
   }
 }
 
+bool _shouldGrayOut(feedback_model.EnergyFeedback? fb) {
+  // Only keep color if feedback is "match"
+  if (fb == null) return false;
+  return fb != feedback_model.EnergyFeedback.match;
+}
+
 /// ---------------------------------------------------------------------------
 /// EnergyTile
 /// ---------------------------------------------------------------------------
@@ -510,7 +539,9 @@ class EnergyTile extends StatelessWidget {
     final mainAxisAlignment =
         expandForSidebar ? MainAxisAlignment.center : MainAxisAlignment.start;
 
-    return Material(
+    final bool isCompleted = submittedFeedback != null;
+
+    Widget core = Material(
       color: tileBg,
       elevation: compact ? 1 : 2,
       shadowColor: Colors.black.withOpacity(0.12),
@@ -584,6 +615,7 @@ class EnergyTile extends StatelessWidget {
             ),
 
             SizedBox(height: expandForSidebar ? 35 : 8),
+
             // recommendation text
             Padding(
               padding: recPad,
@@ -596,7 +628,7 @@ class EnergyTile extends StatelessWidget {
               ),
             ),
 
-            // feedback confirmation row (if feedback exists, either freshly tapped or loaded from Firestore)
+            // feedback confirmation row
             if (submittedFeedback != null)
               Padding(
                 padding: bottomConfirmPad,
@@ -628,6 +660,29 @@ class EnergyTile extends StatelessWidget {
         ),
       ),
     );
+
+    // Visually gray out completed tiles: grayscale + subtle scrim
+    // Gray out only if feedback exists and is NOT "match"
+    if (isCompleted && _shouldGrayOut(submittedFeedback)) {
+      core = ColorFiltered(
+        colorFilter: _kGreyscaleFilter,
+        child: Stack(
+          children: [
+            core,
+            Positioned.fill(
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(tileRadius),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return core;
   }
 }
 
