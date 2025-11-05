@@ -1,15 +1,16 @@
 // lib/features/energy/energy_view_model.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:setup/features/auth/providers/providers.dart';
+import 'package:setup/features/energy/providers/energy_provider.dart';
 import 'package:setup/features/firestore/providers/providers.dart';
 import 'package:setup/features/energy/models/energy_model.dart';
 import 'package:setup/features/energy/repository/energy_repository.dart';
 
 /// Provides the Firestore-backed EnergyRepository
-final energyRepositoryProvider = Provider<EnergyRepository>((ref) {
-  final firestoreRepo = ref.read(firestoreRepositoryProvider);
-  return EnergyRepository(firestoreRepo);
-});
+// final energyRepositoryProvider = Provider<EnergyRepository>((ref) {
+//   final firestoreRepo = ref.read(firestoreRepositoryProvider);
+//   return EnergyRepository(firestoreRepo);
+// });
 
 /// AsyncNotifierProvider managing load, refresh, and update of EnergyModel
 // final energyModelProvider =

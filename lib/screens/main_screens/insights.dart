@@ -34,6 +34,7 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
   Widget build(BuildContext context) {
     final energyAsync = ref.watch(energyModelProvider);
     final pointsAsync = ref.watch(predictedEnergyProvider);
+    final notifier = ref.read(energyModelProvider.notifier);
     ref.watch(todayFeedbackMapProvider);
 
     final theme = Theme.of(context);
@@ -106,6 +107,7 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
                                       ? EnergyTileList(
                                         key: const ValueKey('detailed'),
                                         entries: points,
+                                        model: notifier,
                                         density: EnergyTileDensity.compact,
                                       )
                                       : CompactInsightsGrid(

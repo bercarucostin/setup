@@ -1,6 +1,8 @@
 import 'dart:ui' show FontFeature, ImageFilter;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:setup/features/energy/controllers/energy_view_model.dart';
+import 'package:setup/features/energy/models/energy_model.dart';
 
 import 'package:setup/features/energy/models/energy_point.dart';
 import 'package:setup/features/energy/models/energy_feedback.dart'
@@ -34,6 +36,7 @@ String _feedbackDebugDescription(feedback_model.EnergyFeedback fb) {
 /// ---------------------------------------------------------------------------
 class EnergyTileList extends ConsumerWidget {
   final List<EnergyPoint> entries;
+  final EnergyModelNotifier model;
   final void Function(EnergyPoint entry)? onConfirm;
   final void Function(EnergyPoint entry)? onReject;
 
@@ -52,6 +55,7 @@ class EnergyTileList extends ConsumerWidget {
   const EnergyTileList({
     super.key,
     required this.entries,
+    required this.model,
     this.onConfirm,
     this.onReject,
     this.upcomingOnly = false,
@@ -199,6 +203,27 @@ class EnergyTileList extends ConsumerWidget {
               userId: userId,
               record: record,
             );
+
+            var adjustedEnergy = point.energy;
+            switch (fb) {
+              case feedback_model.EnergyFeedback.muchHigher:
+                adjustedEnergy += 10;
+              case feedback_model.EnergyFeedback.higher:
+                adjustedEnergy += 5;
+              case feedback_model.EnergyFeedback.lower:
+                adjustedEnergy -= 5;
+              case feedback_model.EnergyFeedback.muchLower:
+                adjustedEnergy -= 10;
+              case feedback_model.EnergyFeedback.match:
+                // no change
+                break;
+            }
+
+            await model.updateModelWeights(
+              hour: point.hour,
+              actualEnergy: adjustedEnergy,
+            );
+            model.refreshModel();
           },
         );
       },
