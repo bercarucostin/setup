@@ -90,7 +90,7 @@ final todayFeedbackMapProvider = FutureProvider<Map<int, EnergyFeedbackRecord>>(
     if (user == null) {
       return <int, EnergyFeedbackRecord>{};
     }
-
+    final notifier = ref.watch(energyModelProvider);
     final repo = ref.read(energyRepositoryProvider);
     return repo.fetchUserEnergyFeedbackForToday(user.uid);
   },
