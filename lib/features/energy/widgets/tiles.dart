@@ -5,15 +5,30 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:peak_flow/features/energy/models/energy_feedback.dart';
 import 'package:peak_flow/features/energy/models/energy_point.dart';
 
-
 /// Controls tile size & spacing.
 enum EnergyTileDensity { comfortable, compact }
 
 const _kGreyscaleFilter = ColorFilter.matrix(<double>[
-  0.2126, 0.7152, 0.0722, 0, 0,
-  0.2126, 0.7152, 0.0722, 0, 0,
-  0.2126, 0.7152, 0.0722, 0, 0,
-  0, 0, 0, 1, 0,
+  0.2126,
+  0.7152,
+  0.0722,
+  0,
+  0,
+  0.2126,
+  0.7152,
+  0.0722,
+  0,
+  0,
+  0.2126,
+  0.7152,
+  0.0722,
+  0,
+  0,
+  0,
+  0,
+  0,
+  1,
+  0,
 ]);
 
 int _offsetFromStart(int hour, int start) => (hour - start + 24) % 24;
@@ -49,7 +64,8 @@ class EnergyTileList extends ConsumerWidget {
     required int hour,
     required EnergyFeedback feedback,
     required double predictedEnergy,
-  }) onSubmitFeedback;
+  })
+  onSubmitFeedback;
 
   final EdgeInsetsGeometry? listPadding;
   final bool upcomingOnly;
@@ -244,10 +260,10 @@ class _EnergyTileWithFeedbackShellState
               absorbing: _saving,
               child: Opacity(
                 opacity: _saving ? 0.6 : 1.0,
-                child:  _FeedbackColumn(
-  density: widget.density,
-  onSelect: _handleSidebarTap,
-),
+                child: _FeedbackColumn(
+                  density: widget.density,
+                  onSelect: _handleSidebarTap,
+                ),
               ),
             ),
           ),
@@ -262,7 +278,6 @@ class _EnergyTileWithFeedbackShellState
 // _iconForFeedback, _colorForFeedback, band logic, etc).
 //
 // Just ensure those classes/functions are still in this file or imported properly.
-
 
 bool _shouldGrayOut(EnergyFeedback? fb) =>
     fb != null && fb != EnergyFeedback.match;
@@ -287,7 +302,7 @@ class EnergyTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final band = _bandFor(energy);
+    final band = _bandFor(energy, hour);
 
     final tileBg = band.color;
     final onTile = _onColorFor(tileBg);
@@ -307,8 +322,9 @@ class EnergyTile extends StatelessWidget {
     final recPad = compact
         ? const EdgeInsets.fromLTRB(8, 10, 8, 16)
         : const EdgeInsets.fromLTRB(8, 18, 8, 40);
-    final recStyle = (compact ? theme.textTheme.bodyMedium : theme.textTheme.bodyLarge)
-        ?.copyWith(height: 1.2, fontWeight: FontWeight.w600, color: onTile);
+    final recStyle =
+        (compact ? theme.textTheme.bodyMedium : theme.textTheme.bodyLarge)
+            ?.copyWith(height: 1.2, fontWeight: FontWeight.w600, color: onTile);
 
     final barWidth = compact ? 56.0 : 84.0;
     final barHeight = compact ? 6.0 : 10.0;
@@ -325,8 +341,9 @@ class EnergyTile extends StatelessWidget {
         : const EdgeInsets.only(top: 8, left: 8, right: 8, bottom: 8);
 
     final mainAxisSize = expandForSidebar ? MainAxisSize.max : MainAxisSize.min;
-    final mainAxisAlignment =
-        expandForSidebar ? MainAxisAlignment.center : MainAxisAlignment.start;
+    final mainAxisAlignment = expandForSidebar
+        ? MainAxisAlignment.center
+        : MainAxisAlignment.start;
 
     final bool isCompleted = submittedFeedback != null;
 
@@ -351,7 +368,7 @@ class EnergyTile extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _HourChip(
-                  text: "$hour o'clock",
+                  text: "$hour:00",
                   iconSize: hourIconSize,
                   padding: EdgeInsets.symmetric(
                     horizontal: chipHPad,
@@ -398,7 +415,7 @@ class EnergyTile extends StatelessWidget {
               child: Text(
                 band.recommendation,
                 textAlign: TextAlign.center,
-                maxLines: compact ? 2 : 3,
+                maxLines: compact ? 3 : 4,
                 overflow: TextOverflow.ellipsis,
                 style: recStyle,
               ),
@@ -568,10 +585,7 @@ class _FeedbackColumn extends StatelessWidget {
   final void Function(EnergyFeedback fb) onSelect;
   final EnergyTileDensity density;
 
-  const _FeedbackColumn({
-    required this.onSelect,
-    required this.density,
-  });
+  const _FeedbackColumn({required this.onSelect, required this.density});
 
   @override
   Widget build(BuildContext context) {
@@ -581,12 +595,12 @@ class _FeedbackColumn extends StatelessWidget {
     const gap = 4.0;
 
     Widget btn(EnergyFeedback fb) => _FeedbackCircleButton(
-          size: buttonSize,
-          iconSize: iconSize,
-          icon: _iconForFeedback(fb),
-          iconColor: _colorForFeedback(fb),
-          onTap: () => onSelect(fb),
-        );
+      size: buttonSize,
+      iconSize: iconSize,
+      icon: _iconForFeedback(fb),
+      iconColor: _colorForFeedback(fb),
+      onTap: () => onSelect(fb),
+    );
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -672,7 +686,9 @@ class _FeedbackCircleButton extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(10),
         onTap: onTap,
-        child: Center(child: Icon(icon, size: iconSize, color: iconColor)),
+        child: Center(
+          child: Icon(icon, size: iconSize, color: iconColor),
+        ),
       ),
     );
   }
@@ -690,38 +706,237 @@ class _EnergyBand {
   });
 }
 
-_EnergyBand _bandFor(double energy) {
+// Optional: keep your existing _EnergyBand class as-is.
+
+enum _EnergyZone { runningOnFumes, warmingUp, cruising, inTheZone, peakPower }
+
+enum _TimeBlock {
+  wake7to8,
+  wake9to10,
+  wake11to12,
+  wake13to14,
+  wake15to16,
+  wake17to18,
+  wake19to20,
+  wake21to22,
+  sleep23to2,
+  sleep3to6,
+  other,
+}
+
+_EnergyZone _zoneFor(double energy) {
   final e = energy.clamp(0, 100);
-  if (e <= 20) {
-    return const _EnergyBand(
-      label: 'Running on fumes',
-      recommendation: 'Gentle tasks only. Protect your focus and recharge briefly.',
-      color: Color(0xFFE53935),
-    );
-  } else if (e <= 40) {
-    return const _EnergyBand(
-      label: 'Warming up',
-      recommendation: 'Do light planning or admin. A short walk can boost you.',
-      color: Color(0xFFFFA000),
-    );
-  } else if (e <= 60) {
-    return const _EnergyBand(
-      label: 'Cruising',
-      recommendation: 'Tackle steady work. Avoid context switching to keep pace.',
-      color: Color(0xFFFFC107),
-    );
-  } else if (e <= 80) {
-    return const _EnergyBand(
-      label: 'In the zone',
-      recommendation: 'Great window for deep work. Silence notifications and dive in.',
-      color: Color(0xFF43A047),
-    );
-  } else {
-    return const _EnergyBand(
-      label: 'Peak power',
-      recommendation: 'This is your prime time — ship the hardest thing now.',
-      color: Color(0xFF1B5E20),
-    );
+  if (e <= 20) return _EnergyZone.runningOnFumes;
+  if (e <= 40) return _EnergyZone.warmingUp;
+  if (e <= 60) return _EnergyZone.cruising;
+  if (e <= 80) return _EnergyZone.inTheZone;
+  return _EnergyZone.peakPower;
+}
+
+_TimeBlock _timeBlockForHour(int hour0to23) {
+  final h = hour0to23 % 24;
+
+  // Resting windows
+  if (h == 23 || h == 0 || h == 1 || h == 2) return _TimeBlock.sleep23to2;
+  if (h >= 3 && h <= 6) return _TimeBlock.sleep3to6;
+
+  // Waking windows (2-hour blocks)
+  if (h == 7 || h == 8) return _TimeBlock.wake7to8;
+  if (h == 9 || h == 10) return _TimeBlock.wake9to10;
+  if (h == 11 || h == 12) return _TimeBlock.wake11to12;
+  if (h == 13 || h == 14) return _TimeBlock.wake13to14;
+  if (h == 15 || h == 16) return _TimeBlock.wake15to16;
+  if (h == 17 || h == 18) return _TimeBlock.wake17to18;
+  if (h == 19 || h == 20) return _TimeBlock.wake19to20;
+  if (h == 21 || h == 22) return _TimeBlock.wake21to22;
+
+  return _TimeBlock.other;
+}
+
+const Map<_TimeBlock, Map<_EnergyZone, String>> _proTipsByBlock = {
+  _TimeBlock.wake7to8: {
+    _EnergyZone.peakPower:
+        'Use this quiet time to get a 60-minute head start on your most important task.',
+    _EnergyZone.inTheZone:
+        'Channel this clarity into mapping out your top 3 priorities for the day.',
+    _EnergyZone.cruising:
+        'Ease into the day. Tidy your workspace and review your calendar.',
+    _EnergyZone.warmingUp:
+        'Boost your energy with 10 minutes of light stretching or a morning walk.',
+    _EnergyZone.runningOnFumes:
+        "Don't force it. Start with a full glass of water and try to get 10 minutes of sunlight.",
+  },
+
+  _TimeBlock.wake9to10: {
+    _EnergyZone.peakPower:
+        'This is your prime time. Tackle your single most complex problem right now.',
+    _EnergyZone.inTheZone:
+        'Silence all notifications. Set a 90-minute timer and dive into your main project.',
+    _EnergyZone.cruising:
+        'Knock out your first 2-3 "must-do" tasks to build momentum.',
+    _EnergyZone.warmingUp:
+        'Start with a 10-minute task (like answering one email). Completing it will build energy.',
+    _EnergyZone.runningOnFumes:
+        'Your energy is low. Instead of doing work, just plan your work. Make a clear list.',
+  },
+
+  _TimeBlock.wake11to12: {
+    _EnergyZone.peakPower:
+        'Channel this energy into your most demanding creative or analytical challenge.',
+    _EnergyZone.inTheZone:
+        "You're in flow. Postpone any new meetings or calls to protect this state.",
+    _EnergyZone.cruising:
+        'Good time for a productive check-in meeting or to answer important team emails.',
+    _EnergyZone.warmingUp:
+        'Build momentum with a productive, low-stress task. Try a 20-minute learning exercise or watch a tutorial.',
+    _EnergyZone.runningOnFumes:
+        'Step away from your desk. A 5-minute walk and some fresh air can reset your focus.',
+  },
+
+  _TimeBlock.wake13to14: {
+    _EnergyZone.peakPower:
+        "You're full of energy. Use this surge to handle a difficult review or data analysis.",
+    _EnergyZone.inTheZone:
+        'Eat a light, protein-focused lunch to sustain this focus into the afternoon.',
+    _EnergyZone.cruising:
+        'Use this time to clear your inbox or manage your calendar for the week.',
+    _EnergyZone.warmingUp:
+        'A 15-minute walk after you eat is the best way to boost your afternoon energy.',
+    _EnergyZone.runningOnFumes:
+        'You must take a real break. No "lunch at the desk." Get away from your screen.',
+  },
+
+  _TimeBlock.wake15to16: {
+    _EnergyZone.peakPower:
+        'Channel this sharp afternoon focus into a complex task or a brainstorming session.',
+    _EnergyZone.inTheZone:
+        'Push to finish one significant part of your project before the day ends.',
+    _EnergyZone.cruising:
+        'This is a great window for the team project or getting feedback from a colleague.',
+    _EnergyZone.warmingUp:
+        'Build energy for the final stretch. Switch to simple data entry or file organization.',
+    _EnergyZone.runningOnFumes:
+        'Your blood sugar may be low. Grab a healthy snack (like nuts or fruit) to avoid a crash.',
+  },
+
+  _TimeBlock.wake17to18: {
+    _EnergyZone.peakPower:
+        "You've got a final burst. Use it to finish one last hard task for a big win.",
+    _EnergyZone.inTheZone:
+        'Wrap up your main task and write clear "handoff" notes for yourself for tomorrow.',
+    _EnergyZone.cruising:
+        'Use this steady energy to plan your top 3 tasks for tomorrow. End the day with a clear plan.',
+    _EnergyZone.warmingUp:
+        "Clean your inbox. A clean slate will boost tomorrow's energy.",
+    _EnergyZone.runningOnFumes:
+        'Pushing further will lead to mistakes. Call it a day and sign off 15 minutes early.',
+  },
+
+  _TimeBlock.wake19to20: {
+    _EnergyZone.peakPower:
+        "You've got extra energy. Channel it into a hobby, learning, or a creative side project.",
+    _EnergyZone.inTheZone:
+        'This is a great time for exercise, cooking an engaging new recipe, or focused "play" time.',
+    _EnergyZone.cruising:
+        'Use this positive, stable energy to connect meaningfully with family or friends.',
+    _EnergyZone.warmingUp:
+        'A 20-minute walk can help your mind transition from "work" to "home" mode.',
+    _EnergyZone.runningOnFumes:
+        "You're drained. Your only job is to recharge. Listen to music or an easy-going podcast.",
+  },
+
+  _TimeBlock.wake21to22: {
+    _EnergyZone.peakPower:
+        'Your mind is active. Use it for journaling, reading a book, or brainstorming new ideas.',
+    _EnergyZone.inTheZone:
+        'Engage in a focused hobby that you enjoy, like reading, drawing, or playing an instrument.',
+    _EnergyZone.cruising:
+        'Tidy up common areas for 15 minutes or prep your coffee/lunch for tomorrow.',
+    _EnergyZone.warmingUp:
+        "Start your wind-down routine. A warm shower or bath can help signal to your body it's time to rest.",
+    _EnergyZone.runningOnFumes:
+        'Your energy is gone. Get off your phone and switch to a physical book or audiobook to rest your eyes.',
+  },
+
+  _TimeBlock.sleep23to2: {
+    _EnergyZone.peakPower:
+        'Your mind is active, but your body needs sleep. Read a physical book (no screens) to wind down.',
+    _EnergyZone.inTheZone:
+        'You should be winding down. Put your phone in another room now to prepare for deep sleep.',
+    _EnergyZone.cruising:
+        'This is the perfect time to go to bed. Turn off the lights and aim for 7-8 hours of sleep.',
+    _EnergyZone.warmingUp:
+        'Your energy is naturally low. Turn down the lights and listen to some calming music or a sleep story.',
+    _EnergyZone.runningOnFumes:
+        "Your body is telling you it's time to rest. Get into bed immediately.",
+  },
+
+  _TimeBlock.sleep3to6: {
+    _EnergyZone.peakPower:
+        'Awake? Your mind is racing, but your body needs rest. Try a 10-minute guided meditation or body scan.',
+    _EnergyZone.inTheZone:
+        "Stop checking your phone. Avoid bright lights. Try to relax and drift back to sleep.",
+    _EnergyZone.cruising:
+        "It's normal to stir. Try changing positions and focus on your breathing.",
+    _EnergyZone.warmingUp:
+        "It's not time to wake up yet. Try to relax and get this last, valuable bit of rest.",
+    _EnergyZone.runningOnFumes:
+        "You're awake and exhausted. Put the phone down now. Close your eyes and focus on the simple feeling of resting in bed.",
+  },
+};
+
+String _fallbackTip(_EnergyZone z) {
+  switch (z) {
+    case _EnergyZone.runningOnFumes:
+      return 'Keep it minimal and recover briefly.';
+    case _EnergyZone.warmingUp:
+      return 'Do something light to build momentum.';
+    case _EnergyZone.cruising:
+      return 'Steady work is best; avoid unnecessary context switching.';
+    case _EnergyZone.inTheZone:
+      return 'Protect focus and go deep—mute notifications.';
+    case _EnergyZone.peakPower:
+      return 'Use this window for your hardest, highest-impact work.';
+  }
+}
+
+_EnergyBand _bandFor(double energy, int hour) {
+  final zone = _zoneFor(energy);
+  final block = _timeBlockForHour(hour);
+  final tip = _proTipsByBlock[block]?[zone] ?? _fallbackTip(zone);
+
+  // Keep labels = energy zones, and keep your existing colors.
+  switch (zone) {
+    case _EnergyZone.runningOnFumes:
+      return _EnergyBand(
+        label: 'Running on fumes',
+        recommendation: tip,
+        color: const Color(0xFFE53935),
+      );
+    case _EnergyZone.warmingUp:
+      return _EnergyBand(
+        label: 'Warming up',
+        recommendation: tip,
+        color: const Color(0xFFFFA000),
+      );
+    case _EnergyZone.cruising:
+      return _EnergyBand(
+        label: 'Cruising',
+        recommendation: tip,
+        color: const Color(0xFFFFC107),
+      );
+    case _EnergyZone.inTheZone:
+      return _EnergyBand(
+        label: 'In the zone',
+        recommendation: tip,
+        color: const Color(0xFF43A047),
+      );
+    case _EnergyZone.peakPower:
+      return _EnergyBand(
+        label: 'Peak power',
+        recommendation: tip,
+        color: const Color(0xFF1B5E20),
+      );
   }
 }
 

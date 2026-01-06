@@ -34,7 +34,7 @@ class _HomeScreenState extends State<HomeScreen> {
           alignment: Alignment.center,
           children: [
             const Text(
-              'Setup',
+              'Watt',
               style: TextStyle(
                 fontFamily: 'Montserrat',
                 fontWeight: FontWeight.w600,

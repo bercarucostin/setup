@@ -234,7 +234,7 @@ class _AddEventsScreenState extends ConsumerState<AddEventsScreen>
                             if (cellWidth < 170) {
                               cardHeight = 230;
                             } else if (cellWidth < 200) {
-                              cardHeight = 230;
+                              cardHeight = 200;
                             } else if (cellWidth < 230) {
                               cardHeight = 210;
                             } else {
@@ -535,30 +535,30 @@ class _EventCard extends StatelessWidget {
                         ),
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    Align(
-                      alignment: Alignment.bottomLeft,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: effectBg,
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: Text(
-                          effectText,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: effectFg,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
-                    ),
+                    // const SizedBox(height: 8),
+                    // Align(
+                    //   alignment: Alignment.bottomLeft,
+                    //   child: Container(
+                    //     padding: const EdgeInsets.symmetric(
+                    //       horizontal: 10,
+                    //       vertical: 6,
+                    //     ),
+                    //     decoration: BoxDecoration(
+                    //       color: effectBg,
+                    //       borderRadius: BorderRadius.circular(999),
+                    //     ),
+                    //     child: Text(
+                    //       effectText,
+                    //       maxLines: 1,
+                    //       overflow: TextOverflow.ellipsis,
+                    //       style: TextStyle(
+                    //         color: effectFg,
+                    //         fontWeight: FontWeight.w700,
+                    //         fontSize: 12,
+                    //       ),
+                    //     ),
+                    //   ),
+                    // ),
                   ],
                 ),
               ),

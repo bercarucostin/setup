@@ -81,7 +81,7 @@ class CheckingScreen extends StatelessWidget {
                     SvgPicture.asset('assets/icons/logo.svg', height: 64),
                     const SizedBox(height: 10),
                     const Text(
-                      'SETUP',
+                      'Watt',
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 18,

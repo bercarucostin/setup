@@ -308,7 +308,7 @@ class _PageIntro extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 24),
             child: Text(
               "Good days and bad days often feel random and unpredictable. "
-              "Setup can help you stop guessing and start understanding your "
+              "Watt can help you stop guessing and start understanding your "
               "body's natural energy patterns, so you can perform at your best, "
               "consistently.",
               textAlign: TextAlign.center,
@@ -475,7 +475,7 @@ class _PageTiming extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24),
             child: Text(
-              "Calendars ignore how your energy really moves. Setup gives each "
+              "Calendars ignore how your energy really moves. Watt gives each "
               "hour an Energy Score (1–100) and tells you when to push, cruise, "
               "or recharge — so you can perform at your best",
               textAlign: TextAlign.center,
@@ -526,7 +526,7 @@ class _PageFeedback extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24),
             child: Text(
-              'Setup lives of your feedback',
+              'Watt lives of your feedback',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 28,
@@ -541,7 +541,7 @@ class _PageFeedback extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 24),
             child: Text(
               "Just rate how accurate our prediction was — the more feedback "
-              "you give, the smarter Setup gets. Soon it’ll know your energy "
+              "you give, the smarter Watt gets. Soon it’ll know your energy "
               "and mood better than you do. You can also rate your sleep or "
               "log boosts like coffee, naps, or workouts.",
               textAlign: TextAlign.center,
@@ -555,7 +555,7 @@ class _PageFeedback extends StatelessWidget {
         ],
       ),
       bottomSection: _PageFooter(
-        buttonLabel: 'Start Using Setup',
+        buttonLabel: 'Start Using Watt',
         onButtonTap: finishing ? null : onFinish,
         currentIndex: currentIndex,
         total: 4,
@@ -680,7 +680,7 @@ class _LearnMoreLink extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: const [
           Text(
-            'Learn more about how Setup works',
+            'Learn more about how Watt works',
             style: TextStyle(
               color: color,
               fontSize: 14,

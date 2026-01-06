@@ -96,7 +96,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                                   fontWeight: FontWeight.bold,
                                   fontFamily: 'Montserrat',
                                 ),
-                                child: const Text('SETUP'),
+                                child: const Text('Watt'),
                               ),
                               const SizedBox(height: 24),
 
