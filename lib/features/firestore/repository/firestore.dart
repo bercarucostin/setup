@@ -1,5 +1,4 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:setup/features/energy/models/event.dart';
 
 class FirestoreRepository {
   final FirebaseFirestore _firestore;
@@ -109,8 +108,9 @@ class FirestoreRepository {
     final collection = _firestore.collection(collectionPath);
 
     // If docId is not provided, pre-generate one
-    final DocumentReference<Map<String, dynamic>> docRef =
-        docId != null ? collection.doc(docId) : collection.doc();
+    final DocumentReference<Map<String, dynamic>> docRef = docId != null
+        ? collection.doc(docId)
+        : collection.doc();
 
     await docRef.set(data, SetOptions(merge: merge));
     return docRef;
@@ -201,5 +201,16 @@ class FirestoreRepository {
         .collection(subcollectionPath)
         .doc(subDocId);
     await subDocRef.delete();
+  }
+
+  Stream<Map<String, dynamic>?> watchDocument({
+    required String collectionPath,
+    required String docId,
+  }) {
+    return _firestore
+        .collection(collectionPath)
+        .doc(docId)
+        .snapshots()
+        .map((snap) => snap.data());
   }
 }

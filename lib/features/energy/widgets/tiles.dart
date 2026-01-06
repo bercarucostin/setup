@@ -1,112 +1,66 @@
-import 'dart:ui' show FontFeature, ImageFilter;
+import 'dart:ui' show FontFeature;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:setup/features/energy/controllers/energy_view_model.dart';
-import 'package:setup/features/energy/models/energy_model.dart';
 
-import 'package:setup/features/energy/models/energy_point.dart';
-import 'package:setup/features/energy/models/energy_feedback.dart'
-    as feedback_model;
-import 'package:setup/features/energy/models/energy_feedback.dart'
-    show EnergyFeedbackRecord;
-import 'package:setup/features/auth/providers/providers.dart';
-import 'package:setup/features/energy/providers/energy_provider.dart';
-import 'package:setup/features/energy/repository/energy_repository.dart';
+import 'package:peak_flow/features/energy/models/energy_feedback.dart';
+import 'package:peak_flow/features/energy/models/energy_point.dart';
+
 
 /// Controls tile size & spacing.
 enum EnergyTileDensity { comfortable, compact }
 
 const _kGreyscaleFilter = ColorFilter.matrix(<double>[
-  0.2126,
-  0.7152,
-  0.0722,
-  0,
-  0,
-  0.2126,
-  0.7152,
-  0.0722,
-  0,
-  0,
-  0.2126,
-  0.7152,
-  0.0722,
-  0,
-  0,
-  0,
-  0,
-  0,
-  1,
-  0,
+  0.2126, 0.7152, 0.0722, 0, 0,
+  0.2126, 0.7152, 0.0722, 0, 0,
+  0.2126, 0.7152, 0.0722, 0, 0,
+  0, 0, 0, 1, 0,
 ]);
 
 int _offsetFromStart(int hour, int start) => (hour - start + 24) % 24;
 
-/// Returns the cut index in `entries`:
-///  - If the current hour exists in the list, returns its index (so items before it are "past").
-///  - Otherwise, returns the index of the first *future* item after `nowHour` in the cycle.
-///  - If all items are in the past, returns entries.length (everything gets buttons).
 int _findCutIndex(List<EnergyPoint> entries, int nowHour) {
   if (entries.isEmpty) return 0;
   final start = entries.first.hour;
   final nowOff = _offsetFromStart(nowHour, start);
 
-  // Prefer exact match (current hour)
   for (int i = 0; i < entries.length; i++) {
     if (entries[i].hour == nowHour) return i;
   }
 
-  // Otherwise, first future hour after "now" in the cyclic order
   for (int i = 0; i < entries.length; i++) {
     final off = _offsetFromStart(entries[i].hour, start);
     if (off > nowOff) return i;
   }
 
-  // All are past
   return entries.length;
 }
 
-String _feedbackDebugDescription(feedback_model.EnergyFeedback fb) {
-  switch (fb) {
-    case feedback_model.EnergyFeedback.muchHigher:
-      return "My energy was far higher";
-    case feedback_model.EnergyFeedback.higher:
-      return "My energy was slightly higher";
-    case feedback_model.EnergyFeedback.match:
-      return "Suggested energy was perfect";
-    case feedback_model.EnergyFeedback.lower:
-      return "My energy was slightly lower";
-    case feedback_model.EnergyFeedback.muchLower:
-      return "My energy was far lower";
-  }
-}
-
 /// ---------------------------------------------------------------------------
-/// EnergyTileList (ConsumerWidget so we can watch providers)
+/// EnergyTileList (NEW API: no provider reads inside)
 /// ---------------------------------------------------------------------------
 class EnergyTileList extends ConsumerWidget {
   final List<EnergyPoint> entries;
-  final EnergyModelNotifier model;
-  final void Function(EnergyPoint entry)? onConfirm;
-  final void Function(EnergyPoint entry)? onReject;
+
+  /// Feedback already persisted for today (hour -> record)
+  final Map<int, EnergyFeedbackRecord> existingFeedbackMap;
+
+  /// Called when user chooses feedback in sidebar
+  final Future<void> Function({
+    required int hour,
+    required EnergyFeedback feedback,
+    required double predictedEnergy,
+  }) onSubmitFeedback;
 
   final EdgeInsetsGeometry? listPadding;
-
-  /// If true, only show tiles with hour > current device hour.
   final bool upcomingOnly;
-
-  /// Override the starting hour (for testing or different logic).
-  /// If null, uses DateTime.now().hour
   final int? fromHourOverride;
-
-  /// Controls tile size & spacing. Default is compact for small tiles.
   final EnergyTileDensity density;
 
   const EnergyTileList({
     super.key,
     required this.entries,
-    required this.model,
-    this.onConfirm,
-    this.onReject,
+    required this.existingFeedbackMap,
+    required this.onSubmitFeedback,
     this.upcomingOnly = false,
     this.fromHourOverride,
     this.density = EnergyTileDensity.compact,
@@ -117,25 +71,14 @@ class EnergyTileList extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final nowHour = fromHourOverride ?? DateTime.now().hour;
 
-    // 1. read today's saved feedback map from provider
-    final todayFeedbackAsync = ref.watch(todayFeedbackMapProvider);
-    // We'll unwrap it inside the builder below so UI still renders if loading.
-
-    // for (var e in entries) {
-    //   debugPrint("TileList entry: hour=${e.hour}, energy=${e.energy}");
-    // }
-
-    // keep original order (no sorting)
     final source = entries;
-    final visibleList =
-        upcomingOnly
-            ? source.where((e) => e.hour > nowHour - 2).toList()
-            : source;
+    final visibleList = upcomingOnly
+        ? source.where((e) => e.hour > nowHour - 2).toList()
+        : source;
 
-    // compute where "now" sits relative to this *list*
     final cutIndex = _findCutIndex(visibleList, nowHour);
-
     final padding = listPadding ?? const EdgeInsets.fromLTRB(12, 12, 12, 72);
+    final itemGap = density == EnergyTileDensity.compact ? 6.0 : 10.0;
 
     if (visibleList.isEmpty) {
       return const _EmptyState(
@@ -143,77 +86,6 @@ class EnergyTileList extends ConsumerWidget {
       );
     }
 
-    final itemGap = density == EnergyTileDensity.compact ? 6.0 : 10.0;
-
-    // We'll also need the repo + userId for saving feedback
-    final energyRepo = ref.read(energyRepositoryProvider);
-
-    final userAsync = ref.watch(signedInUserProvider);
-    final String? userId = userAsync.maybeWhen(
-      data: (u) => u?.uid,
-      orElse: () => null,
-    );
-
-    return todayFeedbackAsync.when(
-      loading: () {
-        // We STILL render list with no pre-filled feedback while loading,
-        // so UI doesn't block.
-        final emptyMap = <int, EnergyFeedbackRecord>{};
-        return _buildListView(
-          visibleList: visibleList,
-          nowHour: nowHour,
-          density: density,
-          padding: padding,
-          itemGap: itemGap,
-          userId: userId,
-          energyRepo: energyRepo,
-          existingFeedbackMap: emptyMap,
-          cutIndex: cutIndex,
-        );
-      },
-      error: (err, stack) {
-        // On error we just behave like no feedback saved.
-        final emptyMap = <int, EnergyFeedbackRecord>{};
-        return _buildListView(
-          visibleList: visibleList,
-          nowHour: nowHour,
-          density: density,
-          padding: padding,
-          itemGap: itemGap,
-          userId: userId,
-          energyRepo: energyRepo,
-          existingFeedbackMap: emptyMap,
-          cutIndex: cutIndex,
-        );
-      },
-      data: (feedbackMap) {
-        return _buildListView(
-          visibleList: visibleList,
-          nowHour: nowHour,
-          density: density,
-          padding: padding,
-          itemGap: itemGap,
-          userId: userId,
-          energyRepo: energyRepo,
-          existingFeedbackMap: feedbackMap,
-          cutIndex: cutIndex,
-        );
-      },
-    );
-  }
-
-  Widget _buildListView({
-    required List<EnergyPoint> visibleList,
-    required int nowHour,
-    required EnergyTileDensity density,
-    required EdgeInsetsGeometry padding,
-    required double itemGap,
-    required String? userId,
-    required EnergyRepository energyRepo,
-    required Map<int, EnergyFeedbackRecord> existingFeedbackMap,
-    required int
-    cutIndex, // items with index < cutIndex are "past" in this list
-  }) {
     return ListView.separated(
       padding: padding,
       itemCount: visibleList.length,
@@ -221,70 +93,23 @@ class EnergyTileList extends ConsumerWidget {
       itemBuilder: (context, i) {
         final point = visibleList[i];
 
-        // Did we already submit feedback for this hour today?
         final existingRecord = existingFeedbackMap[point.hour];
-        final feedbackAlreadyGiven = existingRecord?.feedback;
+        final savedFeedback = existingRecord?.feedback;
 
-        // Show sidebar only for list items STRICTLY BEFORE the cutIndex (i < cutIndex),
-        // and only if we don't already have feedback for that hour.
         final bool shouldShowFeedbackBar =
-            (i < cutIndex) && (feedbackAlreadyGiven == null);
+            (i < cutIndex) && (savedFeedback == null);
 
         return _EnergyTileWithFeedbackShell(
           hour: point.hour,
           energy: point.energy,
           density: density,
-
-          // Pass pre-existing feedback from Firestore if any
-          existingFeedback: feedbackAlreadyGiven,
-
+          existingFeedback: savedFeedback,
           showFeedbackBarInitially: shouldShowFeedbackBar,
-          onConfirm: null,
-          onReject: null,
-
-          onSidebarFeedback: (fb) async {
-            final readable = _feedbackDebugDescription(fb);
-            debugPrint(
-              "Feedback for hour ${point.hour}: $readable ($fb) / energy=${point.energy}",
-            );
-
-            if (userId == null) {
-              debugPrint('Skipping saveUserEnergyFeedback: no signed-in user.');
-              return;
-            }
-
-            final record = EnergyFeedbackRecord(
-              hour: point.hour,
-              feedback: fb,
-              predictedEnergy: point.energy,
-            );
-
-            await energyRepo.saveUserEnergyFeedback(
-              userId: userId,
-              record: record,
-            );
-
-            // Optional: nudge "actual" for training based on feedback type
-            var adjustedEnergy = point.energy;
-            switch (fb) {
-              case feedback_model.EnergyFeedback.muchHigher:
-                adjustedEnergy += 10;
-              case feedback_model.EnergyFeedback.higher:
-                adjustedEnergy += 5;
-              case feedback_model.EnergyFeedback.lower:
-                adjustedEnergy -= 5;
-              case feedback_model.EnergyFeedback.muchLower:
-                adjustedEnergy -= 10;
-              case feedback_model.EnergyFeedback.match:
-                break; // no change
-            }
-
-            await model.updateModelWeights(
-              hour: point.hour,
-              actualEnergy: adjustedEnergy,
-            );
-            model.refreshModel();
-          },
+          onSidebarFeedback: (fb) => onSubmitFeedback(
+            hour: point.hour,
+            feedback: fb,
+            predictedEnergy: point.energy,
+          ),
         );
       },
     );
@@ -298,7 +123,6 @@ class _EmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-
     return Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
@@ -315,39 +139,24 @@ class _EmptyState extends StatelessWidget {
   }
 }
 
-/// ---------------------------------------------------------------------------
-/// _EnergyTileWithFeedbackShell
-/// ---------------------------------------------------------------------------
-///
-/// Now takes `existingFeedback`.
-/// - If we already have feedback for that hour from Firestore:
-///    - we start with _selectedFeedback = that value
-///    - we hide the sidebar straight away
-///
+/// Shell that shows sidebar only when needed (keeps your behavior)
 class _EnergyTileWithFeedbackShell extends StatefulWidget {
   final int hour;
   final double energy;
   final EnergyTileDensity density;
 
   final bool showFeedbackBarInitially;
-  final VoidCallback? onConfirm;
-  final VoidCallback? onReject;
+  final Future<void> Function(EnergyFeedback fb) onSidebarFeedback;
 
-  final Future<void> Function(feedback_model.EnergyFeedback fb)?
-  onSidebarFeedback;
-
-  /// NEW: feedback that was already saved in Firestore for this hour
-  final feedback_model.EnergyFeedback? existingFeedback;
+  final EnergyFeedback? existingFeedback;
 
   const _EnergyTileWithFeedbackShell({
     required this.hour,
     required this.energy,
     required this.density,
     required this.showFeedbackBarInitially,
-    required this.onConfirm,
-    required this.onReject,
-    this.onSidebarFeedback,
-    this.existingFeedback,
+    required this.onSidebarFeedback,
+    required this.existingFeedback,
   });
 
   @override
@@ -357,17 +166,12 @@ class _EnergyTileWithFeedbackShell extends StatefulWidget {
 
 class _EnergyTileWithFeedbackShellState
     extends State<_EnergyTileWithFeedbackShell> {
-  feedback_model.EnergyFeedback? _selectedFeedback;
   late bool _showSidebar;
+  bool _saving = false;
 
   @override
   void initState() {
     super.initState();
-
-    // Initial mount: preload whatever Firestore already had.
-    _selectedFeedback = widget.existingFeedback;
-
-    // Sidebar only shows if it's a past/now hour AND we don't already have feedback.
     _showSidebar =
         widget.showFeedbackBarInitially && widget.existingFeedback == null;
   }
@@ -376,37 +180,32 @@ class _EnergyTileWithFeedbackShellState
   void didUpdateWidget(covariant _EnergyTileWithFeedbackShell oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    // Case: parent rebuilt with new Firestore data (e.g. you navigated away/back
-    // and todayFeedbackMapProvider now contains the saved feedback)
-    final oldFb = oldWidget.existingFeedback;
-    final newFb = widget.existingFeedback;
+    final had = oldWidget.existingFeedback != null;
+    final has = widget.existingFeedback != null;
 
-    if (oldFb != newFb) {
-      // Sync local selection to latest known feedback
-      _selectedFeedback = newFb;
-
-      // If we now HAVE feedback, hide sidebar.
-      // If we now DON'T, show it again based on showFeedbackBarInitially.
-      _showSidebar = (newFb == null) && widget.showFeedbackBarInitially;
-
+    if (had != has) {
+      _showSidebar =
+          widget.showFeedbackBarInitially && widget.existingFeedback == null;
+      if (has) _saving = false;
       setState(() {});
     }
   }
 
-  Future<void> _handleSidebarTap(feedback_model.EnergyFeedback fb) async {
-    // optimistic UI: lock in feedback locally and hide bar instantly
+  Future<void> _handleSidebarTap(EnergyFeedback fb) async {
+    if (_saving) return;
+
     setState(() {
-      _selectedFeedback = fb;
+      _saving = true;
       _showSidebar = false;
     });
 
-    // persist to Firestore
-    if (widget.onSidebarFeedback != null) {
-      await widget.onSidebarFeedback!(fb);
+    try {
+      await widget.onSidebarFeedback(fb);
+    } finally {
+      if (mounted) {
+        setState(() => _saving = false);
+      }
     }
-
-    // NOTE: after save, the provider will eventually return this feedback,
-    // and didUpdateWidget above will keep things in sync on future rebuilds.
   }
 
   @override
@@ -415,20 +214,16 @@ class _EnergyTileWithFeedbackShellState
     final double sidebarWidth = compact ? 44.0 : 52.0;
     final double sidebarGap = compact ? 8.0 : 10.0;
 
-    // If sidebar is hidden (already gave feedback / future hour / etc.)
     if (!_showSidebar) {
       return EnergyTile(
         hour: widget.hour,
         energy: widget.energy,
         density: widget.density,
-        onConfirm: widget.onConfirm,
-        onReject: widget.onReject,
-        submittedFeedback: _selectedFeedback,
+        submittedFeedback: widget.existingFeedback,
         expandForSidebar: false,
       );
     }
 
-    // Otherwise, render tile + sidebar chooser
     return IntrinsicHeight(
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -438,8 +233,6 @@ class _EnergyTileWithFeedbackShellState
               hour: widget.hour,
               energy: widget.energy,
               density: widget.density,
-              onConfirm: widget.onConfirm,
-              onReject: widget.onReject,
               submittedFeedback: null,
               expandForSidebar: true,
             ),
@@ -447,10 +240,15 @@ class _EnergyTileWithFeedbackShellState
           SizedBox(width: sidebarGap),
           SizedBox(
             width: sidebarWidth,
-            child: _FeedbackColumn(
-              density: widget.density,
-              selected: null,
-              onSelect: _handleSidebarTap,
+            child: AbsorbPointer(
+              absorbing: _saving,
+              child: Opacity(
+                opacity: _saving ? 0.6 : 1.0,
+                child:  _FeedbackColumn(
+  density: widget.density,
+  onSelect: _handleSidebarTap,
+),
+              ),
             ),
           ),
         ],
@@ -459,23 +257,22 @@ class _EnergyTileWithFeedbackShellState
   }
 }
 
-bool _shouldGrayOut(feedback_model.EnergyFeedback? fb) {
-  // Only keep color if feedback is "match"
-  if (fb == null) return false;
-  return fb != feedback_model.EnergyFeedback.match;
-}
+// ----------------- KEEP your existing EnergyTile / _FeedbackColumn etc -----------------
+// Everything below can remain exactly as you already have it (EnergyTile, _FeedbackColumn,
+// _iconForFeedback, _colorForFeedback, band logic, etc).
+//
+// Just ensure those classes/functions are still in this file or imported properly.
 
-/// ---------------------------------------------------------------------------
-/// EnergyTile
-/// ---------------------------------------------------------------------------
+
+bool _shouldGrayOut(EnergyFeedback? fb) =>
+    fb != null && fb != EnergyFeedback.match;
+
 class EnergyTile extends StatelessWidget {
-  final int hour; // "7 o'clock"
-  final double energy; // 0..100
+  final int hour;
+  final double energy;
   final EnergyTileDensity density;
-  final VoidCallback? onConfirm;
-  final VoidCallback? onReject;
 
-  final feedback_model.EnergyFeedback? submittedFeedback;
+  final EnergyFeedback? submittedFeedback;
   final bool expandForSidebar;
 
   const EnergyTile({
@@ -483,8 +280,6 @@ class EnergyTile extends StatelessWidget {
     required this.hour,
     required this.energy,
     required this.density,
-    this.onConfirm,
-    this.onReject,
     this.submittedFeedback,
     this.expandForSidebar = false,
   });
@@ -506,17 +301,13 @@ class EnergyTile extends StatelessWidget {
     final compact = density == EnergyTileDensity.compact;
 
     final tileRadius = compact ? 12.0 : 16.0;
-    final tilePad =
-        compact
-            ? const EdgeInsets.fromLTRB(10, 6, 10, 6)
-            : const EdgeInsets.fromLTRB(14, 12, 14, 12);
-    final recPad =
-        compact
-            ? const EdgeInsets.fromLTRB(8, 10, 8, 16)
-            : const EdgeInsets.fromLTRB(8, 18, 8, 40);
-    final recStyle = (compact
-            ? theme.textTheme.bodyMedium
-            : theme.textTheme.bodyLarge)
+    final tilePad = compact
+        ? const EdgeInsets.fromLTRB(10, 6, 10, 6)
+        : const EdgeInsets.fromLTRB(14, 12, 14, 12);
+    final recPad = compact
+        ? const EdgeInsets.fromLTRB(8, 10, 8, 16)
+        : const EdgeInsets.fromLTRB(8, 18, 8, 40);
+    final recStyle = (compact ? theme.textTheme.bodyMedium : theme.textTheme.bodyLarge)
         ?.copyWith(height: 1.2, fontWeight: FontWeight.w600, color: onTile);
 
     final barWidth = compact ? 56.0 : 84.0;
@@ -529,12 +320,10 @@ class EnergyTile extends StatelessWidget {
     final pillFont = compact ? 11.0 : 14.0;
     final bandSpacing = compact ? 3.0 : 6.0;
 
-    final bottomConfirmPad =
-        compact
-            ? const EdgeInsets.only(top: 4, left: 8, right: 8, bottom: 4)
-            : const EdgeInsets.only(top: 8, left: 8, right: 8, bottom: 8);
+    final bottomConfirmPad = compact
+        ? const EdgeInsets.only(top: 4, left: 8, right: 8, bottom: 4)
+        : const EdgeInsets.only(top: 8, left: 8, right: 8, bottom: 8);
 
-    // When sidebar is visible, fill height but center contents vertically
     final mainAxisSize = expandForSidebar ? MainAxisSize.max : MainAxisSize.min;
     final mainAxisAlignment =
         expandForSidebar ? MainAxisAlignment.center : MainAxisAlignment.start;
@@ -557,7 +346,6 @@ class EnergyTile extends StatelessWidget {
           mainAxisSize: mainAxisSize,
           mainAxisAlignment: mainAxisAlignment,
           children: [
-            // header section
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -574,7 +362,6 @@ class EnergyTile extends StatelessWidget {
                   borderColor: onTile.withOpacity(0.22),
                 ),
                 Column(
-                  crossAxisAlignment: CrossAxisAlignment.center,
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     _BandPill(
@@ -590,11 +377,6 @@ class EnergyTile extends StatelessWidget {
                         horizontal: pillHPad,
                         vertical: pillVPad,
                       ),
-                      shadow: BoxShadow(
-                        color: Colors.black.withOpacity(0.10),
-                        blurRadius: compact ? 6 : 10,
-                        offset: const Offset(0, 2),
-                      ),
                     ),
                     SizedBox(height: bandSpacing),
                     _MiniEnergyBar(
@@ -603,11 +385,6 @@ class EnergyTile extends StatelessWidget {
                       height: barHeight,
                       trackColor: barTrack,
                       fillColor: barFill,
-                      shadow: BoxShadow(
-                        color: Colors.black.withOpacity(0.08),
-                        blurRadius: compact ? 5 : 8,
-                        offset: const Offset(0, 2),
-                      ),
                     ),
                   ],
                 ),
@@ -616,7 +393,6 @@ class EnergyTile extends StatelessWidget {
 
             SizedBox(height: expandForSidebar ? 35 : 8),
 
-            // recommendation text
             Padding(
               padding: recPad,
               child: Text(
@@ -628,7 +404,6 @@ class EnergyTile extends StatelessWidget {
               ),
             ),
 
-            // feedback confirmation row
             if (submittedFeedback != null)
               Padding(
                 padding: bottomConfirmPad,
@@ -644,7 +419,6 @@ class EnergyTile extends StatelessWidget {
                           height: 1.2,
                         ),
                         textAlign: TextAlign.center,
-                        softWrap: true,
                       ),
                     ),
                     const SizedBox(width: 6),
@@ -661,8 +435,6 @@ class EnergyTile extends StatelessWidget {
       ),
     );
 
-    // Visually gray out completed tiles: grayscale + subtle scrim
-    // Gray out only if feedback exists and is NOT "match"
     if (isCompleted && _shouldGrayOut(submittedFeedback)) {
       core = ColorFiltered(
         colorFilter: _kGreyscaleFilter,
@@ -685,8 +457,6 @@ class EnergyTile extends StatelessWidget {
     return core;
   }
 }
-
-/// --- UI atoms (unchanged) ----
 
 class _HourChip extends StatelessWidget {
   final String text;
@@ -733,12 +503,11 @@ class _HourChip extends StatelessWidget {
 }
 
 class _MiniEnergyBar extends StatelessWidget {
-  final double value; // 0..1
+  final double value;
   final double width;
   final double height;
   final Color trackColor;
   final Color fillColor;
-  final BoxShadow? shadow;
 
   const _MiniEnergyBar({
     required this.value,
@@ -746,7 +515,6 @@ class _MiniEnergyBar extends StatelessWidget {
     required this.height,
     required this.trackColor,
     required this.fillColor,
-    this.shadow,
   });
 
   @override
@@ -757,7 +525,6 @@ class _MiniEnergyBar extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(8),
         color: trackColor,
-        boxShadow: shadow == null ? null : [shadow!],
       ),
       clipBehavior: Clip.hardEdge,
       child: Align(
@@ -776,14 +543,12 @@ class _BandPill extends StatelessWidget {
   final Color bgColor;
   final TextStyle textStyle;
   final EdgeInsets padding;
-  final BoxShadow? shadow;
 
   const _BandPill({
     required this.text,
     required this.bgColor,
     required this.textStyle,
     required this.padding,
-    this.shadow,
   });
 
   @override
@@ -793,21 +558,17 @@ class _BandPill extends StatelessWidget {
       decoration: BoxDecoration(
         color: bgColor,
         borderRadius: BorderRadius.circular(999),
-        boxShadow: shadow == null ? null : [shadow!],
       ),
       child: Text(text, style: textStyle),
     );
   }
 }
 
-/// Sidebar with feedback buttons (unchanged except for using feedback_model)
 class _FeedbackColumn extends StatelessWidget {
-  final feedback_model.EnergyFeedback? selected;
-  final void Function(feedback_model.EnergyFeedback fb) onSelect;
+  final void Function(EnergyFeedback fb) onSelect;
   final EnergyTileDensity density;
 
   const _FeedbackColumn({
-    required this.selected,
     required this.onSelect,
     required this.density,
   });
@@ -817,80 +578,60 @@ class _FeedbackColumn extends StatelessWidget {
     final compact = density == EnergyTileDensity.compact;
     final buttonSize = compact ? 32.0 : 36.0;
     final iconSize = compact ? 16.0 : 18.0;
-    final gap = 4.0;
+    const gap = 4.0;
 
-    Widget makeBtn(feedback_model.EnergyFeedback fb) {
-      return _FeedbackCircleButton(
-        size: buttonSize,
-        iconSize: iconSize,
-        icon: _iconForFeedback(fb),
-        iconColor: _colorForFeedback(fb),
-        isSelected: false,
-        onTap: () => onSelect(fb),
-      );
-    }
-
-    if (selected != null) {
-      final fb = selected!;
-      return Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _FeedbackCircleButton(
-            size: buttonSize,
-            iconSize: iconSize,
-            icon: _iconForFeedback(fb),
-            iconColor: _colorForFeedback(fb),
-            isSelected: true,
-            onTap: () {},
-          ),
-        ],
-      );
-    }
+    Widget btn(EnergyFeedback fb) => _FeedbackCircleButton(
+          size: buttonSize,
+          iconSize: iconSize,
+          icon: _iconForFeedback(fb),
+          iconColor: _colorForFeedback(fb),
+          onTap: () => onSelect(fb),
+        );
 
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        makeBtn(feedback_model.EnergyFeedback.muchHigher),
-        SizedBox(height: gap),
-        makeBtn(feedback_model.EnergyFeedback.higher),
-        SizedBox(height: gap),
-        makeBtn(feedback_model.EnergyFeedback.match),
-        SizedBox(height: gap),
-        makeBtn(feedback_model.EnergyFeedback.lower),
-        SizedBox(height: gap),
-        makeBtn(feedback_model.EnergyFeedback.muchLower),
+        btn(EnergyFeedback.muchHigher),
+        const SizedBox(height: gap),
+        btn(EnergyFeedback.higher),
+        const SizedBox(height: gap),
+        btn(EnergyFeedback.match),
+        const SizedBox(height: gap),
+        btn(EnergyFeedback.lower),
+        const SizedBox(height: gap),
+        btn(EnergyFeedback.muchLower),
       ],
     );
   }
 }
 
-IconData _iconForFeedback(feedback_model.EnergyFeedback fb) {
+IconData _iconForFeedback(EnergyFeedback fb) {
   switch (fb) {
-    case feedback_model.EnergyFeedback.muchHigher:
+    case EnergyFeedback.muchHigher:
       return Icons.keyboard_double_arrow_up_rounded;
-    case feedback_model.EnergyFeedback.higher:
+    case EnergyFeedback.higher:
       return Icons.keyboard_arrow_up_rounded;
-    case feedback_model.EnergyFeedback.match:
+    case EnergyFeedback.match:
       return Icons.check_rounded;
-    case feedback_model.EnergyFeedback.lower:
+    case EnergyFeedback.lower:
       return Icons.keyboard_arrow_down_rounded;
-    case feedback_model.EnergyFeedback.muchLower:
+    case EnergyFeedback.muchLower:
       return Icons.keyboard_double_arrow_down_rounded;
   }
 }
 
-Color _colorForFeedback(feedback_model.EnergyFeedback fb) {
+Color _colorForFeedback(EnergyFeedback fb) {
   switch (fb) {
-    case feedback_model.EnergyFeedback.muchHigher:
-      return const Color(0xFFE53935); // red
-    case feedback_model.EnergyFeedback.higher:
-      return const Color(0xFFFFA000); // amber
-    case feedback_model.EnergyFeedback.match:
-      return const Color(0xFF43A047); // green
-    case feedback_model.EnergyFeedback.lower:
-      return const Color(0xFFFFA000); // amber
-    case feedback_model.EnergyFeedback.muchLower:
-      return const Color(0xFFE53935); // red
+    case EnergyFeedback.muchHigher:
+      return const Color(0xFFE53935);
+    case EnergyFeedback.higher:
+      return const Color(0xFFFFA000);
+    case EnergyFeedback.match:
+      return const Color(0xFF43A047);
+    case EnergyFeedback.lower:
+      return const Color(0xFFFFA000);
+    case EnergyFeedback.muchLower:
+      return const Color(0xFFE53935);
   }
 }
 
@@ -899,7 +640,6 @@ class _FeedbackCircleButton extends StatelessWidget {
   final double iconSize;
   final IconData icon;
   final Color iconColor;
-  final bool isSelected;
   final VoidCallback onTap;
 
   const _FeedbackCircleButton({
@@ -907,16 +647,12 @@ class _FeedbackCircleButton extends StatelessWidget {
     required this.iconSize,
     required this.icon,
     required this.iconColor,
-    required this.isSelected,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final borderColor =
-        isSelected
-            ? Colors.black.withOpacity(0.2)
-            : Colors.black.withOpacity(0.08);
+    final borderColor = Colors.black.withOpacity(0.08);
 
     return Container(
       width: size,
@@ -959,159 +695,35 @@ _EnergyBand _bandFor(double energy) {
   if (e <= 20) {
     return const _EnergyBand(
       label: 'Running on fumes',
-      recommendation:
-          'Gentle tasks only. Protect your focus and recharge briefly.',
-      color: Color(0xFFE53935), // red
+      recommendation: 'Gentle tasks only. Protect your focus and recharge briefly.',
+      color: Color(0xFFE53935),
     );
   } else if (e <= 40) {
     return const _EnergyBand(
       label: 'Warming up',
       recommendation: 'Do light planning or admin. A short walk can boost you.',
-      color: Color(0xFFFFA000), // amber
+      color: Color(0xFFFFA000),
     );
   } else if (e <= 60) {
     return const _EnergyBand(
       label: 'Cruising',
-      recommendation:
-          'Tackle steady work. Avoid context switching to keep pace.',
-      color: Color(0xFFFFC107), // yellow
+      recommendation: 'Tackle steady work. Avoid context switching to keep pace.',
+      color: Color(0xFFFFC107),
     );
   } else if (e <= 80) {
     return const _EnergyBand(
       label: 'In the zone',
-      recommendation:
-          'Great window for deep work. Silence notifications and dive in.',
-      color: Color(0xFF43A047), // green
+      recommendation: 'Great window for deep work. Silence notifications and dive in.',
+      color: Color(0xFF43A047),
     );
   } else {
     return const _EnergyBand(
       label: 'Peak power',
       recommendation: 'This is your prime time — ship the hardest thing now.',
-      color: Color(0xFF1B5E20), // dark green
+      color: Color(0xFF1B5E20),
     );
   }
 }
 
-/// Pick readable text color for a given background.
-Color _onColorFor(Color bg) {
-  return bg.computeLuminance() > 0.5 ? Colors.black87 : Colors.white;
-}
-
-Color _adjustForContrast(Color iconColor, Color tileBg) {
-  // Compute brightness difference
-  final iconLum = iconColor.computeLuminance();
-  final bgLum = tileBg.computeLuminance();
-  final diff = (iconLum - bgLum).abs();
-
-  // If too similar, use a neutral color for contrast
-  if (diff < 0.25) {
-    return bgLum > 0.5 ? Colors.black87 : Colors.white;
-  }
-  return iconColor;
-}
-
-/// --- extras from before ----
-class NoGlowBehavior extends ScrollBehavior {
-  const NoGlowBehavior();
-  @override
-  Widget buildOverscrollIndicator(
-    BuildContext context,
-    Widget child,
-    ScrollableDetails details,
-  ) => child;
-}
-
-class ListBottomFade extends StatelessWidget {
-  final double height;
-  const ListBottomFade({super.key, this.height = 64});
-
-  @override
-  Widget build(BuildContext context) {
-    final bg = Theme.of(context).scaffoldBackgroundColor;
-    return IgnorePointer(
-      child: Align(
-        alignment: Alignment.bottomCenter,
-        child: Container(
-          height: height + MediaQuery.of(context).padding.bottom,
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [bg.withOpacity(0.0), bg],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class EndCapPill extends StatelessWidget {
-  final String text;
-  const EndCapPill({super.key, this.text = "That’s all for today"});
-
-  @override
-  Widget build(BuildContext context) {
-    final onBg = Theme.of(context).colorScheme.onSurface.withOpacity(0.8);
-    return IgnorePointer(
-      child: Center(
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            color: Theme.of(context).cardColor.withOpacity(0.9),
-            borderRadius: BorderRadius.circular(999),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.08),
-                blurRadius: 10,
-                offset: const Offset(0, 3),
-              ),
-            ],
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.check_circle_rounded, size: 16, color: onBg),
-              const SizedBox(width: 8),
-              Text(
-                text,
-                style: TextStyle(color: onBg, fontWeight: FontWeight.w700),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class BottomBlurScrim extends StatelessWidget {
-  final double height;
-  const BottomBlurScrim({super.key, this.height = 72});
-
-  @override
-  Widget build(BuildContext context) {
-    final bg = Theme.of(context).scaffoldBackgroundColor;
-    return IgnorePointer(
-      child: Align(
-        alignment: Alignment.bottomCenter,
-        child: ClipRect(
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 0, sigmaY: 10),
-            child: Container(
-              height: height + MediaQuery.of(context).padding.bottom,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [bg.withOpacity(0.0), bg.withOpacity(0.85), bg],
-                  stops: const [0.0, 0.6, 1.0],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
+Color _onColorFor(Color bg) =>
+    bg.computeLuminance() > 0.5 ? Colors.black87 : Colors.white;

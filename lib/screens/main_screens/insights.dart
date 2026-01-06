@@ -1,12 +1,13 @@
 // lib/features/energy/screens/insights_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 
-import 'package:setup/features/energy/models/energy_point.dart';
-import 'package:setup/features/energy/providers/energy_provider.dart';
-import 'package:setup/features/energy/widgets/compact_insights.dart';
-import 'package:setup/features/energy/widgets/tiles.dart';
+import 'package:peak_flow/features/energy/models/energy_feedback.dart';
+import 'package:peak_flow/features/energy/providers/energy_providers.dart';
+
+// Widgets:
+import 'package:peak_flow/features/energy/widgets/compact_view_tiles.dart';
+import 'package:peak_flow/features/energy/widgets/tiles.dart';
 
 enum InsightsView { detailed, compact }
 
@@ -18,113 +19,116 @@ class InsightsScreen extends ConsumerStatefulWidget {
 }
 
 class _InsightsScreenState extends ConsumerState<InsightsScreen> {
-  bool _didRefreshFeedback = false;
   InsightsView _view = InsightsView.detailed;
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (!_didRefreshFeedback) {
-      _didRefreshFeedback = true;
-      ref.invalidate(todayFeedbackMapProvider);
-    }
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final energyAsync = ref.watch(energyModelProvider);
-    final pointsAsync = ref.watch(predictedEnergyProvider);
-    final notifier = ref.read(energyModelProvider.notifier);
-    ref.watch(todayFeedbackMapProvider);
-
     final theme = Theme.of(context);
 
+    final insightsAsync = ref.watch(energyInsightsProvider);
+    final controller = ref.read(energyInsightsProvider.notifier);
+
     return Scaffold(
-      body: energyAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, st) => Center(child: Text('Error loading data: $e')),
-        data: (_) {
-          return SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Header row (title + toggle)
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  // Header row (title + toggle)
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      const Expanded(
-                        child: _HeaderTitle(
-                          title: "Today’s Energy Forecast",
-                          subtitle: "What to tackle in each window",
-                        ),
-                      ),
-                      _IconToggle(
-                        view: _view,
-                        onChanged: (v) => setState(() => _view = v),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 12),
-
-                  // --- Main content area ---
-                  Expanded(
-                    child: pointsAsync.when(
-                      loading:
-                          () =>
-                              const Center(child: CircularProgressIndicator()),
-                      error: (e, st) => Center(child: Text('Error: $e')),
-                      data: (List<EnergyPoint> points) {
-                        return Container(
-                          decoration: BoxDecoration(
-                            color: theme.colorScheme.surface,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(
-                              color: theme.colorScheme.outline.withOpacity(
-                                0.08,
-                              ),
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.04),
-                                blurRadius: 16,
-                                offset: const Offset(0, 8),
-                              ),
-                            ],
-                          ),
-                          clipBehavior: Clip.antiAlias,
-                          child: Padding(
-                            padding: const EdgeInsets.only(bottom: 8),
-                            child: AnimatedSwitcher(
-                              duration: const Duration(milliseconds: 250),
-                              switchInCurve: Curves.easeInOutCubic,
-                              switchOutCurve: Curves.easeInOutCubic,
-                              child:
-                                  _view == InsightsView.detailed
-                                      ? EnergyTileList(
-                                        key: const ValueKey('detailed'),
-                                        entries: points,
-                                        model: notifier,
-                                        density: EnergyTileDensity.compact,
-                                      )
-                                      : CompactInsightsGrid(
-                                        key: const ValueKey('compact'),
-                                        points: points,
-                                      ),
-                            ),
-                          ),
-                        );
-                      },
+                  const Expanded(
+                    child: _HeaderTitle(
+                      title: "Today’s Energy Forecast",
+                      subtitle: "What to tackle in each window",
                     ),
+                  ),
+                  _IconToggle(
+                    view: _view,
+                    onChanged: (v) => setState(() => _view = v),
                   ),
                 ],
               ),
-            ),
-          );
-        },
+
+              const SizedBox(height: 12),
+
+              Expanded(
+                child: insightsAsync.when(
+                  loading: () =>
+                      const Center(child: CircularProgressIndicator()),
+                  error: (e, _) => Center(child: Text('Error: $e')),
+                  data: (data) {
+                    final points = data.points;
+
+                    if (points.isEmpty) {
+                      return const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(24),
+                          child: Text(
+                            "No energy forecast available yet.",
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      );
+                    }
+
+                    return Container(
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surface,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: theme.colorScheme.outline.withOpacity(0.08),
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.04),
+                            blurRadius: 16,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
+                      ),
+                      clipBehavior: Clip.antiAlias,
+                      child: Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 250),
+                          switchInCurve: Curves.easeInOutCubic,
+                          switchOutCurve: Curves.easeInOutCubic,
+                          child: _view == InsightsView.detailed
+                              ? EnergyTileList(
+                                  key: const ValueKey('detailed'),
+                                  entries: data.points,
+                                  existingFeedbackMap: data.todayFeedback,
+                                  density: EnergyTileDensity.compact,
+                                  onSubmitFeedback:
+                                      ({
+                                        required int hour,
+                                        required EnergyFeedback feedback,
+                                        required double predictedEnergy,
+                                      }) async {
+                                        await controller.submitFeedback(
+                                          hour: hour,
+                                          feedback: feedback,
+                                          predictedEnergy: predictedEnergy,
+                                        );
+                                      },
+                                )
+                              : CompactInsightsGrid(
+                                  key: const ValueKey('compact'),
+                                  points: data.points,
+                                ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -180,7 +184,7 @@ class _IconToggle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const appBarColor = Color(0xFF354975); // same as your AppBar color
+    const appBarColor = Color(0xFF354975);
     final cs = Theme.of(context).colorScheme;
 
     Widget circleButton({
@@ -198,23 +202,21 @@ class _IconToggle extends StatelessWidget {
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: selected ? appBarColor : cs.surfaceVariant.withOpacity(0.2),
-            border:
-                selected
-                    ? null
-                    : Border.all(
-                      color: cs.outlineVariant.withOpacity(0.4),
-                      width: 1.0,
+            border: selected
+                ? null
+                : Border.all(
+                    color: cs.outlineVariant.withOpacity(0.4),
+                    width: 1.0,
+                  ),
+            boxShadow: selected
+                ? [
+                    BoxShadow(
+                      color: appBarColor.withOpacity(0.4),
+                      blurRadius: 5,
+                      spreadRadius: 0.5,
                     ),
-            boxShadow:
-                selected
-                    ? [
-                      BoxShadow(
-                        color: appBarColor.withOpacity(0.4),
-                        blurRadius: 5,
-                        spreadRadius: 0.5,
-                      ),
-                    ]
-                    : null,
+                  ]
+                : null,
           ),
           child: Icon(
             icon,

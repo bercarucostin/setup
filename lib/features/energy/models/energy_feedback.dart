@@ -1,13 +1,5 @@
-// same enum you already have in your file
-enum EnergyFeedback {
-  muchHigher, // My energy was far higher
-  higher, // My energy was slightly higher
-  match, // Suggested energy was perfect
-  lower, // My energy was slightly lower
-  muchLower, // My energy was far lower
-}
+enum EnergyFeedback { muchHigher, higher, match, lower, muchLower }
 
-// convert enum -> string for Firestore
 String feedbackToString(EnergyFeedback fb) {
   switch (fb) {
     case EnergyFeedback.muchHigher:
@@ -23,7 +15,6 @@ String feedbackToString(EnergyFeedback fb) {
   }
 }
 
-// convert string -> enum when reading from Firestore
 EnergyFeedback stringToFeedback(String raw) {
   switch (raw) {
     case 'muchHigher':
@@ -37,13 +28,12 @@ EnergyFeedback stringToFeedback(String raw) {
     case 'muchLower':
       return EnergyFeedback.muchLower;
     default:
-      // fallback (if bad / unexpected value in DB)
       return EnergyFeedback.match;
   }
 }
 
 class EnergyFeedbackRecord {
-  final int hour;
+  final int hour; // 0..23
   final EnergyFeedback feedback;
   final double? predictedEnergy;
 
@@ -58,14 +48,17 @@ class EnergyFeedbackRecord {
       'hour': hour,
       'feedback': feedbackToString(feedback),
       if (predictedEnergy != null) 'predictedEnergy': predictedEnergy,
-      'ts': DateTime.now().toIso8601String(), // optional audit trail
+      'ts': DateTime.now().toIso8601String(),
     };
   }
 
   factory EnergyFeedbackRecord.fromFirestore(Map<String, dynamic> data) {
+    final rawHour = data['hour'];
+    final hour = rawHour is int ? rawHour : int.tryParse('$rawHour') ?? 0;
+
     return EnergyFeedbackRecord(
-      hour: data['hour'] as int,
-      feedback: stringToFeedback(data['feedback'] as String),
+      hour: hour.clamp(0, 23),
+      feedback: stringToFeedback((data['feedback'] ?? 'match') as String),
       predictedEnergy: (data['predictedEnergy'] as num?)?.toDouble(),
     );
   }

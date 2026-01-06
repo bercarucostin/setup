@@ -1,22 +1,33 @@
 import 'package:firebase_auth/firebase_auth.dart';
 
-abstract class AuthState {}
+sealed class AuthState {
+  const AuthState();
+}
 
-class AuthLoading extends AuthState {}
+class AuthLoading extends AuthState {
+  const AuthLoading();
+}
 
-class Authenticated extends AuthState {
-  final User user;
-  Authenticated(this.user);
+class Unauthenticated extends AuthState {
+  const Unauthenticated();
 }
 
 class IncompleteProfile extends AuthState {
   final User user;
-  IncompleteProfile(this.user);
+  const IncompleteProfile(this.user);
 }
 
-class Unauthenticated extends AuthState {}
+class CheckingProfile extends AuthState {
+  final User user;
+  const CheckingProfile(this.user);
+}
+
+class Authenticated extends AuthState {
+  final User user;
+  const Authenticated(this.user);
+}
 
 class AuthError extends AuthState {
   final String message;
-  AuthError(this.message);
+  const AuthError(this.message);
 }

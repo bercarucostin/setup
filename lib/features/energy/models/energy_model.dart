@@ -47,32 +47,57 @@ class EnergyModel {
     required this.lrTauSleep,
   });
 
-  // Factory constructor to create EnergyModel from merged Firestore data
+  static double _d(Map<String, dynamic> m, String k, double fallback) {
+    final v = m[k];
+    if (v == null) return fallback;
+    if (v is num) return v.toDouble();
+    throw StateError('Field "$k" must be a number, got ${v.runtimeType}');
+  }
+
+  static int _i(Map<String, dynamic> m, String k, int fallback) {
+    final v = m[k];
+    if (v == null) return fallback;
+    if (v is num) return v.toInt();
+    throw StateError('Field "$k" must be a number, got ${v.runtimeType}');
+  }
+
   factory EnergyModel.fromFirestore(
     Map<String, dynamic> userData,
     Map<String, dynamic> energyModelData,
   ) {
+    final defaultWake = _i(userData, 'wakeHour', 7);
+    final defaultBed = _i(userData, 'bedHour', 23);
+
     return EnergyModel(
-      defaultWakeHour: userData['wakeHour'],
-      defaultBedHour: userData['bedHour'],
-      bedHour: energyModelData['bedHour'] ?? userData['bedHour'],
-      wakeHour: energyModelData['wakeHour'] ?? userData['wakeHour'],
-      bedHourLastDay: energyModelData['bedHourLastDay'],
-      bedHourLastDayEpochDay: energyModelData['bedHourLastDayEpochDay'],
-      hoursSlept: energyModelData['hoursSlept'],
-      circadianPeak: energyModelData['circadianPeak'],
-      sPrev: energyModelData['sPrev'],
-      sPrevNext: energyModelData['sPrevNext'],
-      sPrevNextEpochDay: energyModelData['sPrevNextEpochDay'],
-      sPrevDefault: energyModelData['sPrevDefault'],
-      wS: energyModelData['wS'],
-      wC: energyModelData['wC'],
-      tau0: energyModelData['tau0'],
-      tauSleep: energyModelData['tauSleep'],
-      lrW: energyModelData['lrW'],
-      lrCircadianPeak: energyModelData['lrCircadianPeak'],
-      lrTau0: energyModelData['lrTau0'],
-      lrTauSleep: energyModelData['lrTauSleep'],
+      defaultWakeHour: defaultWake,
+      defaultBedHour: defaultBed,
+
+      wakeHour: _i(energyModelData, 'wakeHour', defaultWake),
+      bedHour: _i(energyModelData, 'bedHour', defaultBed),
+
+      bedHourLastDay: (energyModelData['bedHourLastDay'] as num?)?.toInt(),
+      bedHourLastDayEpochDay:
+          (energyModelData['bedHourLastDayEpochDay'] as num?)?.toInt(),
+      hoursSlept: (energyModelData['hoursSlept'] as num?)?.toInt(),
+
+      circadianPeak: _d(energyModelData, 'circadianPeak', 15.0),
+      sPrev: _d(energyModelData, 'sPrev', 0.5),
+      sPrevNext: (energyModelData['sPrevNext'] as num?)?.toDouble(),
+      sPrevNextEpochDay: (energyModelData['sPrevNextEpochDay'] as num?)
+          ?.toInt(),
+      sPrevDefault: _d(energyModelData, 'sPrevDefault', 0.5),
+
+      wS: _d(energyModelData, 'wS', 0.5),
+      wC: _d(energyModelData, 'wC', 0.5),
+
+      // these were num/double in your model — keep numeric
+      tau0: _d(energyModelData, 'tau0', 16.0),
+      tauSleep: _d(energyModelData, 'tauSleep', 4.5),
+
+      lrW: _d(energyModelData, 'lrW', 0.01),
+      lrCircadianPeak: _d(energyModelData, 'lrCircadianPeak', 0.01),
+      lrTau0: _d(energyModelData, 'lrTau0', 0.001),
+      lrTauSleep: _d(energyModelData, 'lrTauSleep', 0.001),
     );
   }
 
@@ -230,7 +255,8 @@ class EnergyModel {
         S0 *
         ((hoursSlept ?? (defaultWakeHour - defaultBedHour) % 24) /
             (tauSleep * tauSleep));
-    tauSleep =
-        (tauSleep - lrTauSleep * error * dEtauSleep).clamp(3.0, 6.0).toDouble();
+    tauSleep = (tauSleep - lrTauSleep * error * dEtauSleep)
+        .clamp(3.0, 6.0)
+        .toDouble();
   }
 }

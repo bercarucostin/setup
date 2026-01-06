@@ -1,22 +1,20 @@
+// lib/screens/onboarding/onboarding_flow_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_svg/svg.dart';
-import 'package:intl/intl.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
-
-// ⬇️ Adjust these to match your actual paths
-import 'package:setup/features/auth/providers/providers.dart';
-import 'package:setup/features/auth/controllers/profile_setup_notifier.dart';
-import 'package:setup/features/auth/controllers/auth_controller.dart';
-import 'package:setup/features/auth/models/auth_state.dart';
-
 import 'package:url_launcher/url_launcher.dart';
+import 'package:peak_flow/features/onboarding/providers/onboarding_notifier_provider.dart';
+import 'package:peak_flow/features/onboarding/providers/profile_controller_provider.dart';
 
 /// Main onboarding flow widget
 ///
-/// This replaces the 3 separate setup screens. It:
-/// - shows the 4 onboarding screens in a PageView
-/// - handles chronotype, wake/bed time, final submit
+/// - 4 screens in a PageView
+/// - writes inputs into `onboardingDraftProvider`
+/// - final submit uses `profileSetupControllerProvider.completeProfile()`
+/// - router/auth reacts automatically via Firestore + auth state
+/// Main onboarding flow widget
+/// Main onboarding flow widget
 class OnboardingFlowScreen extends ConsumerStatefulWidget {
   const OnboardingFlowScreen({super.key});
 
@@ -29,11 +27,10 @@ class _OnboardingFlowScreenState extends ConsumerState<OnboardingFlowScreen> {
   final PageController _pageController = PageController();
   int _pageIndex = 0;
 
-  // User inputs (page 1: rhythm/schedule)
+  // Local UI inputs for the rhythm page
   String? _selectedChronotype; // "Morning" | "Midday" | "Evening"
   TimeOfDay? _wakeTime;
   TimeOfDay? _bedTime;
-  bool _submitting = false;
 
   // --- helpers --------------------------------------------------------------
 
@@ -43,19 +40,17 @@ class _OnboardingFlowScreenState extends ConsumerState<OnboardingFlowScreen> {
       duration: const Duration(milliseconds: 250),
       curve: Curves.easeOut,
     );
-    setState(() => _pageIndex = index);
+    setState(() {
+      _pageIndex = index;
+    });
   }
 
   void _nextPage() {
-    if (_pageIndex < 3) {
-      _goToPage(_pageIndex + 1);
-    }
+    if (_pageIndex < 3) _goToPage(_pageIndex + 1);
   }
 
   void _prevPage() {
-    if (_pageIndex > 0) {
-      _goToPage(_pageIndex - 1);
-    }
+    if (_pageIndex > 0) _goToPage(_pageIndex - 1);
   }
 
   Future<void> _pickTime({
@@ -80,42 +75,43 @@ class _OnboardingFlowScreenState extends ConsumerState<OnboardingFlowScreen> {
   }
 
   int _hour0to23Round(TimeOfDay t) {
-    final h = (t.hour + (t.minute >= 30 ? 1 : 0)) % 24;
-    return h;
+    return (t.hour + (t.minute >= 30 ? 1 : 0)) % 24;
   }
 
   bool _validateWakeBed() {
     if (_wakeTime == null || _bedTime == null) {
-      _showSnack("Please select wake and bed times");
+      _showSnack('Please select wake and bed times');
       return false;
     }
+
     final wakeMinutes = _wakeTime!.hour * 60 + _wakeTime!.minute;
     final bedMinutes = _bedTime!.hour * 60 + _bedTime!.minute;
+
     if (wakeMinutes >= bedMinutes) {
-      _showSnack("Bedtime must be after wake time");
+      _showSnack('Bedtime must be after wake time');
       return false;
     }
+
     return true;
   }
 
   void _showSnack(String msg) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
   /// Called from Page 1 "Continue" (index 1 -> index 2)
   void _handleContinueRhythm() {
-    // push chronotype to profileSetup
     if (_selectedChronotype != null) {
       ref
-          .read(profileSetupProvider.notifier)
+          .read(onboardingDraftProvider.notifier)
           .updateChronotype(_selectedChronotype!);
     }
 
-    // validate + push wake/bed hours to profileSetup
     if (!_validateWakeBed()) return;
 
     ref
-        .read(profileSetupProvider.notifier)
+        .read(onboardingDraftProvider.notifier)
         .updateSleepTimes(
           _wakeTime!.format(context),
           _bedTime!.format(context),
@@ -126,123 +122,108 @@ class _OnboardingFlowScreenState extends ConsumerState<OnboardingFlowScreen> {
     _nextPage();
   }
 
-  /// Final submit from last screen
   Future<void> _handleFinish() async {
-    if (_submitting) return;
-
-    // safety re-check
     if (!_validateWakeBed()) {
       _goToPage(1);
       return;
     }
 
-    setState(() => _submitting = true);
-
-    // Persist to Firestore
-    await ref.read(profileSetupProvider.notifier).submitAndSaveToFirestore(ref);
-
-    if (!mounted) return;
-
-    context.go('/');
-  }
-
-  /// Page 0 CTA
-  void _startFromIntro() {
-    _nextPage();
-  }
-
-  /// Learn more link tap
-  void _openLearnMore() async {
-    final Uri url = Uri.parse('https://setupapp.io');
-    if (await canLaunchUrl(url)) {
-      await launchUrl(url, mode: LaunchMode.externalApplication);
-    } else {
-      _showSnack("Couldn't open website");
+    try {
+      await ref.read(profileSetupControllerProvider.notifier).completeProfile();
+      context.go('/');
+    } catch (e) {
+      _showSnack(e.toString());
     }
+  }
+
+  void _startFromIntro() => _nextPage();
+
+  Future<void> _openLearnMore() async {
+    final url = Uri.parse('https://setupapp.io');
+    final ok = await launchUrl(url, mode: LaunchMode.externalApplication);
+    if (!ok) _showSnack("Couldn't open website");
   }
 
   @override
   Widget build(BuildContext context) {
-    // Guard: if user is already done onboarding
-    final authState = ref.watch(authControllerProvider);
-    if (authState is! IncompleteProfile) {
-      return const Scaffold(
-        body: Center(child: Text("You're not supposed to be here.")),
-      );
-    }
+    // Keep UI intact, but wire submission/loading to controller provider
+    final submitState = ref.watch(profileSetupControllerProvider);
+    final finishing = submitState.isLoading;
+
+    ref.listen<AsyncValue<void>>(profileSetupControllerProvider, (_, next) {
+      next.whenOrNull(error: (err, __) => _showSnack(err.toString()));
+    });
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F5FF), // light lilac-ish bg
-      appBar: AppBar(
-        backgroundColor: const Color(0xFFF8F5FF),
-        elevation: 1,
-        centerTitle: false,
-        leading:
-            _pageIndex == 0
-                ? null
-                : IconButton(
+      backgroundColor: const Color(0xFFF8F5FF),
+      body: SafeArea(
+        // Wrapping with SafeArea to avoid overlap with system UI
+        child: Stack(
+          children: [
+            // PageView with screens
+            PageView(
+              controller: _pageController,
+              physics: const NeverScrollableScrollPhysics(),
+              onPageChanged: (i) {
+                setState(() => _pageIndex = i);
+              },
+              children: [
+                _PageIntro(
+                  onNext: _startFromIntro,
+                  currentIndex: 0,
+                  onLearnMore: _openLearnMore,
+                ),
+                _PageRhythmSetup(
+                  selectedChronotype: _selectedChronotype,
+                  onSelectChronotype: (val) {
+                    setState(() => _selectedChronotype = val);
+                    ref
+                        .read(onboardingDraftProvider.notifier)
+                        .updateChronotype(val);
+                  },
+                  wakeTime: _wakeTime,
+                  bedTime: _bedTime,
+                  onPickWake: () => _pickTime(
+                    isWake: true,
+                    initialTime:
+                        _wakeTime ?? const TimeOfDay(hour: 7, minute: 0),
+                  ),
+                  onPickBed: () => _pickTime(
+                    isWake: false,
+                    initialTime:
+                        _bedTime ?? const TimeOfDay(hour: 23, minute: 0),
+                  ),
+                  onContinue: _handleContinueRhythm,
+                  currentIndex: 1,
+                  onLearnMore: _openLearnMore,
+                ),
+                _PageTiming(
+                  onNext: _nextPage,
+                  currentIndex: 2,
+                  onLearnMore: _openLearnMore,
+                ),
+                _PageFeedback(
+                  onFinish: _handleFinish,
+                  finishing: finishing,
+                  currentIndex: 3,
+                  onLearnMore: _openLearnMore,
+                ),
+              ],
+            ),
+            // Custom back button at the top, conditionally visible
+            if (_pageIndex >
+                0) // Only show back button on pages after the first one
+              Positioned(
+                top: 10,
+                left: 16,
+                child: IconButton(
                   icon: const Icon(
                     Icons.chevron_left,
                     color: Color(0xFF1F1F2D),
                   ),
                   onPressed: _prevPage,
                 ),
-        title: _pageIndex == 0 ? null : const SizedBox.shrink(),
-        toolbarHeight: 48,
-      ),
-      body: SafeArea(
-        child: PageView(
-          controller: _pageController,
-          physics: const NeverScrollableScrollPhysics(),
-          onPageChanged: (i) => setState(() => _pageIndex = i),
-          children: [
-            // Page 0: Intro / value prop
-            _PageIntro(
-              onNext: _startFromIntro,
-              currentIndex: 0,
-              onLearnMore: _openLearnMore,
-            ),
-
-            // Page 1: Chronotype + wake/bed
-            _PageRhythmSetup(
-              selectedChronotype: _selectedChronotype,
-              onSelectChronotype: (val) {
-                setState(() => _selectedChronotype = val);
-                ref.read(profileSetupProvider.notifier).updateChronotype(val);
-              },
-              wakeTime: _wakeTime,
-              bedTime: _bedTime,
-              onPickWake:
-                  () => _pickTime(
-                    isWake: true,
-                    initialTime:
-                        _wakeTime ?? const TimeOfDay(hour: 7, minute: 0),
-                  ),
-              onPickBed:
-                  () => _pickTime(
-                    isWake: false,
-                    initialTime:
-                        _bedTime ?? const TimeOfDay(hour: 23, minute: 0),
-                  ),
-              onContinue: _handleContinueRhythm,
-              currentIndex: 1,
-              onLearnMore: _openLearnMore,
-            ),
-
-            // Page 2: Timing / energy score explainer
-            _PageTiming(
-              onNext: _nextPage,
-              currentIndex: 2,
-              onLearnMore: _openLearnMore,
-            ),
-
-            // Page 3: Feedback explainer + Finish
-            _PageFeedback(
-              onFinish: _handleFinish,
-              finishing: _submitting,
-              currentIndex: 3,
-              onLearnMore: _openLearnMore,
-            ),
+              ),
           ],
         ),
       ),
@@ -263,7 +244,7 @@ class OnboardingPageShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bg = const Color(0xFFF8F5FF);
+    const bg = Color(0xFFF8F5FF);
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -288,7 +269,6 @@ class OnboardingPageShell extends StatelessWidget {
 }
 
 // PAGE 0 ----------------------------------------------------------------------
-
 class _PageIntro extends StatelessWidget {
   final VoidCallback onNext;
   final int currentIndex;
@@ -307,12 +287,8 @@ class _PageIntro extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           const SizedBox(height: 24),
-
-          // App logo (brain + lightning) – replace with your logo asset if you have it
           const SizedBox(width: 120, height: 120, child: _BrainBoltLogo()),
-
           const SizedBox(height: 24),
-
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24),
             child: Text(
@@ -327,9 +303,7 @@ class _PageIntro extends StatelessWidget {
               ),
             ),
           ),
-
           const SizedBox(height: 24),
-
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24),
             child: Text(
@@ -349,7 +323,7 @@ class _PageIntro extends StatelessWidget {
         ],
       ),
       bottomSection: _PageFooter(
-        buttonLabel: "Get Started",
+        buttonLabel: 'Get Started',
         onButtonTap: onNext,
         currentIndex: currentIndex,
         total: 4,
@@ -393,7 +367,6 @@ class _PageRhythmSetup extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           const SizedBox(height: 16),
-
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Text(
@@ -407,11 +380,9 @@ class _PageRhythmSetup extends StatelessWidget {
               ),
             ),
           ),
-
           const SizedBox(height: 12),
-
           Text(
-            "Choose your rhythm and wake hours.",
+            'Choose your rhythm and wake hours.',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 16,
@@ -419,11 +390,9 @@ class _PageRhythmSetup extends StatelessWidget {
               color: const Color(0xFF51516F),
             ),
           ),
-
           const SizedBox(height: 24),
-
           Text(
-            "When do you feel most awake and productive?",
+            'When do you feel most awake and productive?',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 18,
@@ -431,37 +400,33 @@ class _PageRhythmSetup extends StatelessWidget {
               color: const Color(0xFF1F1F2D),
             ),
           ),
-
           const SizedBox(height: 16),
-
           _ChronotypeRow(
             selected: selectedChronotype,
             onSelect: onSelectChronotype,
           ),
-
           const SizedBox(height: 24),
-
           _TimeCard(
             icon: Icons.wb_sunny_outlined,
-            label: "When do you typically wake up?",
-            valueText:
-                wakeTime == null ? "Select Time" : wakeTime!.format(context),
+            label: 'When do you typically wake up?',
+            valueText: wakeTime == null
+                ? 'Select Time'
+                : wakeTime!.format(context),
             onTap: onPickWake,
           ),
-
           const SizedBox(height: 16),
-
           _TimeCard(
             icon: Icons.bedtime_outlined,
-            label: "When do you typically go to bed?",
-            valueText:
-                bedTime == null ? "Select Time" : bedTime!.format(context),
+            label: 'When do you typically go to bed?',
+            valueText: bedTime == null
+                ? 'Select Time'
+                : bedTime!.format(context),
             onTap: onPickBed,
           ),
         ],
       ),
       bottomSection: _PageFooter(
-        buttonLabel: "Continue",
+        buttonLabel: 'Continue',
         onButtonTap: onContinue,
         currentIndex: currentIndex,
         total: 4,
@@ -490,13 +455,9 @@ class _PageTiming extends StatelessWidget {
       topSection: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          const SizedBox(height: 16),
-
-          // actual screenshot from assets/images/tiles.jpg
+          const SizedBox(height: 62),
           const _TimingPreviewArt(),
-
           const SizedBox(height: 24),
-
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24),
             child: Text(
@@ -510,13 +471,13 @@ class _PageTiming extends StatelessWidget {
               ),
             ),
           ),
-
           const SizedBox(height: 16),
-
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24),
             child: Text(
-              "Calendars ignore how your energy really moves. Setup gives each hour an Energy Score (1–100) and tells you when to push, cruise, or recharge — so you can perform at your best",
+              "Calendars ignore how your energy really moves. Setup gives each "
+              "hour an Energy Score (1–100) and tells you when to push, cruise, "
+              "or recharge — so you can perform at your best",
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 16,
@@ -528,7 +489,7 @@ class _PageTiming extends StatelessWidget {
         ],
       ),
       bottomSection: _PageFooter(
-        buttonLabel: "Continue",
+        buttonLabel: 'Continue',
         onButtonTap: onNext,
         currentIndex: currentIndex,
         total: 4,
@@ -559,17 +520,13 @@ class _PageFeedback extends StatelessWidget {
       topSection: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          const SizedBox(height: 16),
-
-          // actual screenshot from assets/images/feedback.jpg
+          const SizedBox(height: 32),
           const _FeedbackPreviewArt(),
-
           const SizedBox(height: 24),
-
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24),
             child: Text(
-              "Setup lives of your feedback",
+              'Setup lives of your feedback',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 28,
@@ -579,13 +536,14 @@ class _PageFeedback extends StatelessWidget {
               ),
             ),
           ),
-
           const SizedBox(height: 16),
-
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24),
             child: Text(
-              "Just rate how accurate our prediction was — the more feedback you give, the smarter Setup gets. Soon it’ll know your energy and mood better than you do. You can also rate your sleep or log boosts like coffee, naps, or workouts.",
+              "Just rate how accurate our prediction was — the more feedback "
+              "you give, the smarter Setup gets. Soon it’ll know your energy "
+              "and mood better than you do. You can also rate your sleep or "
+              "log boosts like coffee, naps, or workouts.",
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 16,
@@ -597,7 +555,7 @@ class _PageFeedback extends StatelessWidget {
         ],
       ),
       bottomSection: _PageFooter(
-        buttonLabel: "Start Using Setup",
+        buttonLabel: 'Start Using Setup',
         onButtonTap: finishing ? null : onFinish,
         currentIndex: currentIndex,
         total: 4,
@@ -608,7 +566,7 @@ class _PageFeedback extends StatelessWidget {
   }
 }
 
-// FOOTER (button + dots + learn more) -----------------------------------------
+// FOOTER ----------------------------------------------------------------------
 
 class _PageFooter extends StatelessWidget {
   final String buttonLabel;
@@ -631,7 +589,6 @@ class _PageFooter extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        // Primary CTA
         SizedBox(
           width: double.infinity,
           child: GestureDetector(
@@ -643,38 +600,30 @@ class _PageFooter extends StatelessWidget {
                 borderRadius: BorderRadius.circular(16),
               ),
               alignment: Alignment.center,
-              child:
-                  isLoading
-                      ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                            Colors.white,
-                          ),
-                        ),
-                      )
-                      : Text(
-                        buttonLabel,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 16,
-                        ),
+              child: isLoading
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                       ),
+                    )
+                  : Text(
+                      buttonLabel,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 16,
+                      ),
+                    ),
             ),
           ),
         ),
-
         const SizedBox(height: 24),
-
         _PageDots(currentIndex: currentIndex, total: total),
-
         const SizedBox(height: 16),
-
         _LearnMoreLink(onTap: onLearnMore),
-
         const SizedBox(height: 8),
       ],
     );
@@ -686,12 +635,13 @@ class _PageFooter extends StatelessWidget {
 class _PageDots extends StatelessWidget {
   final int currentIndex;
   final int total;
+
   const _PageDots({required this.currentIndex, required this.total});
 
   @override
   Widget build(BuildContext context) {
-    final activeColor = const Color(0xFF4A4B7E);
-    final inactiveColor = const Color(0xFFC5C5D6);
+    const activeColor = Color(0xFF4A4B7E);
+    const inactiveColor = Color(0xFFC5C5D6);
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -718,25 +668,26 @@ class _PageDots extends StatelessWidget {
 
 class _LearnMoreLink extends StatelessWidget {
   final VoidCallback onTap;
+
   const _LearnMoreLink({required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    final color = const Color(0xFF51516F);
+    const color = Color(0xFF51516F);
     return InkWell(
       onTap: onTap,
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
-        children: [
+        children: const [
           Text(
-            "Learn more about how Setup works",
+            'Learn more about how Setup works',
             style: TextStyle(
               color: color,
               fontSize: 14,
               fontWeight: FontWeight.w400,
             ),
           ),
-          const SizedBox(width: 6),
+          SizedBox(width: 6),
           Icon(Icons.open_in_new_rounded, size: 16, color: color),
         ],
       ),
@@ -754,34 +705,33 @@ class _ChronotypeRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Uses placeholders for icons, replace with your SVGs if you want
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Expanded(
           child: _ChronotypeCard(
-            label: "Morning",
-            icon: Icons.wb_sunny, // replace with your morning.svg
-            isSelected: selected == "Morning",
-            onTap: () => onSelect("Morning"),
+            label: 'Morning',
+            icon: Icons.wb_sunny,
+            isSelected: selected == 'Morning',
+            onTap: () => onSelect('Morning'),
           ),
         ),
         const SizedBox(width: 12),
         Expanded(
           child: _ChronotypeCard(
-            label: "Midday",
-            icon: Icons.timelapse, // replace with midday.svg
-            isSelected: selected == "Midday",
-            onTap: () => onSelect("Midday"),
+            label: 'Midday',
+            icon: Icons.timelapse,
+            isSelected: selected == 'Midday',
+            onTap: () => onSelect('Midday'),
           ),
         ),
         const SizedBox(width: 12),
         Expanded(
           child: _ChronotypeCard(
-            label: "Evening",
-            icon: Icons.nightlight_round, // replace with evening.svg
-            isSelected: selected == "Evening",
-            onTap: () => onSelect("Evening"),
+            label: 'Evening',
+            icon: Icons.nightlight_round,
+            isSelected: selected == 'Evening',
+            onTap: () => onSelect('Evening'),
           ),
         ),
       ],
@@ -804,7 +754,7 @@ class _ChronotypeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Color activeColor = const Color(0xFF4A4B7E);
+    const activeColor = Color(0xFF4A4B7E);
     final cardBg = isSelected ? activeColor.withOpacity(0.08) : Colors.white;
     final borderColor = isSelected ? activeColor : Colors.grey.shade300;
     final textColor = isSelected ? const Color(0xFF1F1F2D) : Colors.black87;
@@ -830,11 +780,7 @@ class _ChronotypeCard extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              icon,
-              color: const Color(0xFFFFD83D), // warm yellow vibe like mock
-              size: 40,
-            ),
+            Icon(icon, color: const Color(0xFFFFD83D), size: 40),
             const SizedBox(height: 12),
             Text(
               label,
@@ -847,7 +793,7 @@ class _ChronotypeCard extends StatelessWidget {
   }
 }
 
-// TIME CARD (wake / bed) ------------------------------------------------------
+// TIME CARD -------------------------------------------------------------------
 
 class _TimeCard extends StatelessWidget {
   final IconData icon;
@@ -865,7 +811,7 @@ class _TimeCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final borderColor = Colors.grey.shade300;
-    final iconColor = const Color(0xFF4A4B7E);
+    const iconColor = Color(0xFF4A4B7E);
 
     return GestureDetector(
       onTap: onTap,
@@ -892,20 +838,28 @@ class _TimeCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  DefaultTextStyle(
+                  const DefaultTextStyle(
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF1F1F2D),
+                    ),
+                    child: SizedBox(),
+                  ),
+                  Text(
+                    label,
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
                       color: Color(0xFF1F1F2D),
                     ),
-                    child: Text(label),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     valueText,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontSize: 15,
-                      color: const Color(0xFF4A4B7E),
+                      color: Color(0xFF4A4B7E),
                     ),
                   ),
                 ],
@@ -926,11 +880,10 @@ class _BrainBoltLogo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // swap this with Image.asset("assets/images/logo.png") or your SVG
     return SvgPicture.asset(
       'assets/icons/logo.svg',
-      height: 80, // optional
-      width: 80, // optional
+      height: 80,
+      width: 80,
       fit: BoxFit.contain,
     );
   }
@@ -944,11 +897,11 @@ class _TimingPreviewArt extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      constraints: const BoxConstraints(maxWidth: 320, minHeight: 180),
+      constraints: const BoxConstraints(maxWidth: 240, minHeight: 180),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade300),
+        border: Border.all(color: Colors.grey),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.07),
@@ -971,11 +924,11 @@ class _FeedbackPreviewArt extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      constraints: const BoxConstraints(maxWidth: 300, minHeight: 180),
+      constraints: const BoxConstraints(maxWidth: 240, minHeight: 180),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade300),
+        border: Border.all(color: Colors.grey),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.07),

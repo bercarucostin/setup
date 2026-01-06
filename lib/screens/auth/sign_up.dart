@@ -1,29 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:setup/features/auth/controllers/auth_controller.dart';
-import 'package:setup/features/auth/models/auth_state.dart';
-import 'package:setup/features/auth/providers/providers.dart';
-
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:flutter_svg/flutter_svg.dart';
-import 'package:setup/features/auth/controllers/auth_controller.dart';
-import 'package:setup/features/auth/models/auth_state.dart';
-import 'package:setup/features/auth/providers/providers.dart';
-
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:flutter_svg/flutter_svg.dart';
-import 'package:setup/features/auth/controllers/auth_controller.dart';
-import 'package:setup/features/auth/models/auth_state.dart';
-import 'package:setup/features/auth/providers/providers.dart';
+import '../../features/auth/models/auth_state.dart';
+import '../../features/auth/providers/auth_controller_provider.dart';
 
 class SignUpScreen extends ConsumerStatefulWidget {
   const SignUpScreen({super.key});
@@ -34,25 +15,11 @@ class SignUpScreen extends ConsumerStatefulWidget {
 
 class _SignUpScreenState extends ConsumerState<SignUpScreen> {
   bool showEmailFields = false;
-  String? errorMessage;
+
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmPasswordController =
       TextEditingController();
-
-  @override
-  void initState() {
-    super.initState();
-    _emailController.addListener(clearError);
-    _passwordController.addListener(clearError);
-    _confirmPasswordController.addListener(clearError);
-  }
-
-  void clearError() {
-    if (errorMessage != null) {
-      setState(() => errorMessage = null);
-    }
-  }
 
   @override
   void dispose() {
@@ -62,20 +29,34 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
     super.dispose();
   }
 
+  void _handleEmailSignup() {
+    if (_passwordController.text != _confirmPasswordController.text) {
+      // Local validation error → use controller for consistency
+      ref
+          .read(authControllerProvider.notifier)
+          .emitError('Passwords do not match');
+      return;
+    }
+
+    ref
+        .read(authControllerProvider.notifier)
+        .signUp(_emailController.text.trim(), _passwordController.text);
+  }
+
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authControllerProvider);
-    final isKeyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
 
-    ref.listen<AuthState>(authControllerProvider, (previous, next) {
-      if (next is IncompleteProfile) {
-        context.go('/complete-profile');
-      } else if (next is Authenticated) {
-        context.go('/');
-      } else if (next is AuthError) {
-        setState(() => errorMessage = next.message);
-      }
-    });
+    final bool isKeyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
+
+    final bool isLoading =
+        authState is AuthLoading || authState is CheckingProfile;
+
+    final String? errorMessage = authState is AuthError
+        ? authState.message
+        : null;
+
+    print("Building sign up screen!");
 
     return GestureDetector(
       onTap: () => FocusScope.of(context).unfocus(),
@@ -90,86 +71,79 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
             ),
           ),
           child: SafeArea(
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 300),
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  return SingleChildScrollView(
-                    physics: const ClampingScrollPhysics(),
-                    child: ConstrainedBox(
-                      constraints: BoxConstraints(
-                        minHeight: constraints.maxHeight,
-                      ),
-                      child: IntrinsicHeight(
-                        child: Column(
-                          mainAxisAlignment:
-                              isKeyboardOpen
-                                  ? MainAxisAlignment.start
-                                  : MainAxisAlignment.spaceAround,
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            AnimatedContainer(
-                              duration: const Duration(milliseconds: 250),
-                              height: isKeyboardOpen ? 70 : 80,
-                              child: SvgPicture.asset('assets/icons/logo.svg'),
-                            ),
-                            AnimatedDefaultTextStyle(
-                              duration: const Duration(milliseconds: 250),
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: isKeyboardOpen ? 14 : 20,
-                                fontWeight: FontWeight.bold,
-                              ),
-                              child: const Text(
-                                'Create an account',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                  fontFamily: 'Montserrat',
-                                ),
-                              ),
-                            ),
-                            showEmailFields
-                                ? _buildEmailFields(context, isKeyboardOpen)
-                                : _buildSignupOptions(context, authState),
-                            GestureDetector(
-                              onTap: () {
-                                ref.read(authControllerProvider.notifier);
-                                context.go('/login');
-                              },
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: const [
-                                  Text(
-                                    "Already have an account?",
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                      fontFamily: 'Montserrat',
-                                    ),
-                                  ),
-                                  SizedBox(width: 4),
-                                  Text(
-                                    "Sign in",
-                                    style: TextStyle(
-                                      color: Colors.black,
-                                      fontWeight: FontWeight.bold,
-                                      fontFamily: 'Montserrat',
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                return SingleChildScrollView(
+                  physics: const ClampingScrollPhysics(),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minHeight: constraints.maxHeight,
+                    ),
+                    child: IntrinsicHeight(
+                      child: Column(
+                        mainAxisAlignment: isKeyboardOpen
+                            ? MainAxisAlignment.start
+                            : MainAxisAlignment.spaceAround,
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          AnimatedContainer(
+                            duration: const Duration(milliseconds: 250),
+                            height: isKeyboardOpen ? 70 : 80,
+                            child: SvgPicture.asset('assets/icons/logo.svg'),
+                          ),
 
-                            const SizedBox(height: 20),
-                          ],
-                        ),
+                          AnimatedDefaultTextStyle(
+                            duration: const Duration(milliseconds: 250),
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: isKeyboardOpen ? 14 : 20,
+                              fontWeight: FontWeight.bold,
+                              fontFamily: 'Montserrat',
+                            ),
+                            child: const Text('Create an account'),
+                          ),
+
+                          showEmailFields
+                              ? _buildEmailFields(
+                                  isKeyboardOpen,
+                                  isLoading,
+                                  errorMessage,
+                                )
+                              : _buildSignupOptions(isLoading),
+
+                          GestureDetector(
+                            onTap: () => context.go('/login'),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: const [
+                                Text(
+                                  "Already have an account?",
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontFamily: 'Montserrat',
+                                  ),
+                                ),
+                                SizedBox(width: 4),
+                                Text(
+                                  "Sign in",
+                                  style: TextStyle(
+                                    color: Colors.black,
+                                    fontWeight: FontWeight.bold,
+                                    fontFamily: 'Montserrat',
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          const SizedBox(height: 20),
+                        ],
                       ),
                     ),
-                  );
-                },
-              ),
+                  ),
+                );
+              },
             ),
           ),
         ),
@@ -177,30 +151,31 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
     );
   }
 
-  Widget _buildEmailFields(BuildContext context, bool isKeyboardOpen) {
+  // ---------------------------------------------------------------------------
+  // Widgets
+  // ---------------------------------------------------------------------------
+
+  Widget _buildEmailFields(
+    bool isKeyboardOpen,
+    bool isLoading,
+    String? errorMessage,
+  ) {
     return Column(
       children: [
-        _buildTextField(_emailController, 'Email', isKeyboardOpen),
-        _buildTextField(
-          _passwordController,
-          'Password',
-          isKeyboardOpen,
-          obscure: true,
-        ),
-
+        _buildTextField(_emailController, 'Email'),
+        _buildTextField(_passwordController, 'Password', obscure: true),
         _buildTextField(
           _confirmPasswordController,
           'Confirm Password',
-          isKeyboardOpen,
           obscure: true,
         ),
         if (errorMessage != null)
           Padding(
-            padding: const EdgeInsets.only(top: 4.0),
+            padding: const EdgeInsets.only(top: 8),
             child: Text(
-              errorMessage!,
+              errorMessage,
               style: const TextStyle(
-                color: Colors.red,
+                color: Colors.redAccent,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -215,19 +190,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
           child: SizedBox(
             width: 300,
             child: ElevatedButton(
-              onPressed: () async {
-                if (_passwordController.text !=
-                    _confirmPasswordController.text) {
-                  setState(() => errorMessage = 'Passwords do not match');
-                  return;
-                }
-                await ref
-                    .read(authControllerProvider.notifier)
-                    .signUp(
-                      _emailController.text.trim(),
-                      _passwordController.text,
-                    );
-              },
+              onPressed: isLoading ? null : _handleEmailSignup,
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF354975),
                 foregroundColor: Colors.white,
@@ -236,34 +199,38 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                 ),
                 padding: const EdgeInsets.symmetric(vertical: 14),
               ),
-              child: const Text('Register', style: TextStyle(fontSize: 16)),
+              child: isLoading
+                  ? const SizedBox(
+                      height: 14,
+                      width: 14,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Text('Register', style: TextStyle(fontSize: 16)),
             ),
           ),
         ),
-        SizedBox(height: isKeyboardOpen ? 0 : 10),
       ],
     );
   }
 
-  Widget _buildSignupOptions(BuildContext context, AuthState authState) {
+  Widget _buildSignupOptions(bool isLoading) {
     return Column(
       children: [
         SizedBox(
           width: 300,
           child: ElevatedButton.icon(
-            onPressed:
-                authState is AuthLoading
-                    ? null
-                    : () {
-                      ref
-                          .read(authControllerProvider.notifier)
-                          .signInWithGoogle();
-                    },
+            onPressed: isLoading
+                ? null
+                : () {
+                    ref
+                        .read(authControllerProvider.notifier)
+                        .signInWithGoogle();
+                  },
             icon: const FaIcon(FontAwesomeIcons.google),
-            label: const Text(
-              'Sign up with Google',
-              style: TextStyle(fontSize: 13),
-            ),
+            label: const Text('Sign up with Google'),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.white,
               foregroundColor: Colors.black,
@@ -278,14 +245,9 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
         SizedBox(
           width: 300,
           child: ElevatedButton.icon(
-            onPressed: () {
-              // TODO: Handle Instagram sign up
-            },
+            onPressed: null,
             icon: const FaIcon(FontAwesomeIcons.instagram),
-            label: const Text(
-              'Sign up with Instagram',
-              style: TextStyle(fontSize: 13),
-            ),
+            label: const Text('Sign up with Instagram'),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.pinkAccent,
               foregroundColor: Colors.white,
@@ -300,9 +262,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
         SizedBox(
           width: 300,
           child: ElevatedButton(
-            onPressed: () {
-              setState(() => showEmailFields = true);
-            },
+            onPressed: () => setState(() => showEmailFields = true),
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF354975),
               foregroundColor: Colors.white,
@@ -311,10 +271,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
               ),
               padding: const EdgeInsets.symmetric(vertical: 14),
             ),
-            child: const Text(
-              'Sign up with Email',
-              style: TextStyle(fontSize: 13),
-            ),
+            child: const Text('Sign up with Email'),
           ),
         ),
       ],
@@ -323,8 +280,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
 
   Widget _buildTextField(
     TextEditingController controller,
-    String label,
-    bool isKeyboardOpen, {
+    String label, {
     bool obscure = false,
   }) {
     return SizedBox(
@@ -352,8 +308,6 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
           focusedBorder: const UnderlineInputBorder(
             borderSide: BorderSide(color: Colors.white, width: 1.5),
           ),
-          contentPadding: const EdgeInsets.symmetric(vertical: 14),
-          filled: false,
         ),
       ),
     );
