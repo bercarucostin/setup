@@ -1,8 +1,8 @@
-import 'package:peak_flow/features/energy/models/energy_feedback.dart';
-import 'package:peak_flow/features/energy/models/energy_model.dart';
-import 'package:peak_flow/features/energy/models/energy_point.dart';
-import 'package:peak_flow/features/energy/models/event.dart';
-import 'package:peak_flow/features/firestore/repository/firestore.dart';
+import 'package:watt/features/energy/models/energy_feedback.dart';
+import 'package:watt/features/energy/models/energy_model.dart';
+import 'package:watt/features/energy/models/energy_point.dart';
+import 'package:watt/features/energy/models/event.dart';
+import 'package:watt/features/firestore/repository/firestore.dart';
 
 class EnergyRepository {
   final FirestoreRepository _firestoreRepo;

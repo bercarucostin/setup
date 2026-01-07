@@ -4,8 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:peak_flow/features/onboarding/providers/onboarding_notifier_provider.dart';
-import 'package:peak_flow/features/onboarding/providers/profile_controller_provider.dart';
+import 'package:watt/features/onboarding/providers/onboarding_notifier_provider.dart';
+import 'package:watt/features/onboarding/providers/profile_controller_provider.dart';
 
 /// Main onboarding flow widget
 ///

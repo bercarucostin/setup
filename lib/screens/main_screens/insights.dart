@@ -2,12 +2,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:peak_flow/features/energy/models/energy_feedback.dart';
-import 'package:peak_flow/features/energy/providers/energy_providers.dart';
+import 'package:watt/features/energy/models/energy_feedback.dart';
+import 'package:watt/features/energy/providers/energy_providers.dart';
 
 // Widgets:
-import 'package:peak_flow/features/energy/widgets/compact_view_tiles.dart';
-import 'package:peak_flow/features/energy/widgets/tiles.dart';
+import 'package:watt/features/energy/widgets/compact_view_tiles.dart';
+import 'package:watt/features/energy/widgets/tiles.dart';
 
 enum InsightsView { detailed, compact }
 

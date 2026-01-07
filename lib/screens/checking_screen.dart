@@ -1,44 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/svg.dart';
-import 'package:peak_flow/features/auth/models/auth_state.dart';
-import 'package:peak_flow/features/auth/providers/auth_controller_provider.dart';
-import 'package:peak_flow/screens/auth/sign_in.dart';
-import 'package:peak_flow/screens/home_screen.dart';
-import 'package:peak_flow/screens/profile_configuration/onboarding_flow_screen.dart';
-
-class RootGate extends ConsumerWidget {
-  const RootGate({super.key});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final auth = ref.watch(authControllerProvider);
-
-    debugPrint('RootGate auth=${auth.runtimeType}');
-
-    if (auth is AuthLoading || auth is CheckingProfile) {
-      return const CheckingScreen(); // spinner
-    }
-
-    if (auth is Unauthenticated) {
-      return const SignInScreen();
-    }
-
-    if (auth is IncompleteProfile) {
-      return const OnboardingFlowScreen();
-    }
-
-    if (auth is Authenticated) {
-      return const HomeScreen(); // ✅ only here
-    }
-
-    // Fallback
-    return const CheckingScreen();
-  }
-}
 
 class CheckingScreen extends StatelessWidget {
-  const CheckingScreen({super.key, this.message = 'Setting things up…'});
+  const CheckingScreen({super.key, this.message = '…'});
 
   final String message;
 

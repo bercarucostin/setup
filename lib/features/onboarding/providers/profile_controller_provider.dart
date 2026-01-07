@@ -1,6 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:peak_flow/features/firestore/providers/providers.dart';
-import 'package:peak_flow/features/onboarding/providers/onboarding_notifier_provider.dart';
+import 'package:watt/features/firestore/providers/providers.dart';
+import 'package:watt/features/onboarding/providers/onboarding_notifier_provider.dart';
 
 import '../../auth/providers/providers.dart';
 

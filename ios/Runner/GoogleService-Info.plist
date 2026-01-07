@@ -3,9 +3,9 @@
 <plist version="1.0">
 <dict>
 	<key>CLIENT_ID</key>
-	<string>753333991622-a2s3c6ate3id7n6e9qk82apv6ps1bn9q.apps.googleusercontent.com</string>
+	<string>753333991622-78f3guicd5bs8d0f9jg8jeso45pd6i79.apps.googleusercontent.com</string>
 	<key>REVERSED_CLIENT_ID</key>
-	<string>com.googleusercontent.apps.753333991622-a2s3c6ate3id7n6e9qk82apv6ps1bn9q</string>
+	<string>com.googleusercontent.apps.753333991622-78f3guicd5bs8d0f9jg8jeso45pd6i79</string>
 	<key>API_KEY</key>
 	<string>AIzaSyAtj7dJSoMCR0foEx9W2DTVaFVSNMRqeHg</string>
 	<key>GCM_SENDER_ID</key>
@@ -13,7 +13,7 @@
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
-	<string>com.example.peakFlow</string>
+	<string>com.trywatt.watt</string>
 	<key>PROJECT_ID</key>
 	<string>peak-flow-91fc5</string>
 	<key>STORAGE_BUCKET</key>
@@ -29,7 +29,7 @@
 	<key>IS_SIGNIN_ENABLED</key>
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:753333991622:ios:b79386a9f1e221a71d3fc7</string>
+	<string>1:753333991622:ios:dc21525153d4acc91d3fc7</string>
 	<key>DATABASE_URL</key>
 	<string>https://peak-flow-91fc5-default-rtdb.europe-west1.firebasedatabase.app</string>
 </dict>

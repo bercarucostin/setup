@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:peak_flow/features/energy/models/event.dart';
-import 'package:peak_flow/features/energy/providers/energy_providers.dart';
-import 'package:peak_flow/features/energy/providers/event_providers.dart';
+import 'package:watt/features/energy/models/event.dart';
+import 'package:watt/features/energy/providers/energy_providers.dart';
+import 'package:watt/features/energy/providers/event_providers.dart';
 
 class HistoryTabBody extends ConsumerWidget {
   final String userId;

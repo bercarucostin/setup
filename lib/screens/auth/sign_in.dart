@@ -77,10 +77,11 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                         child: IntrinsicHeight(
                           child: Column(
                             mainAxisAlignment: isKeyboardOpen
-                                ? MainAxisAlignment.start
+                                ? MainAxisAlignment.center
                                 : MainAxisAlignment.spaceAround,
                             crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
+                              SizedBox(height: isKeyboardOpen ? 0 : 40),
                               AnimatedContainer(
                                 duration: const Duration(milliseconds: 250),
                                 height: isKeyboardOpen ? 70 : 80,
@@ -88,6 +89,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                                   'assets/icons/logo.svg',
                                 ),
                               ),
+                              SizedBox(height: isKeyboardOpen ? 24 : 0),
                               AnimatedDefaultTextStyle(
                                 duration: const Duration(milliseconds: 250),
                                 style: TextStyle(
@@ -337,11 +339,15 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
         SizedBox(
           width: 240,
           child: ElevatedButton.icon(
-            onPressed: null,
-            icon: const FaIcon(FontAwesomeIcons.instagram),
-            label: const Text('Continue with Instagram'),
+            onPressed: enabled
+                ? () => ref
+                      .read(authControllerProvider.notifier)
+                      .signInWithApple()
+                : null,
+            icon: const FaIcon(FontAwesomeIcons.apple),
+            label: const Text('Continue with Apple'),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Color.fromARGB(255, 114, 14, 47),
+              backgroundColor: Colors.black,
               foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),

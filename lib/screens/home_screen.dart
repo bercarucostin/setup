@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:peak_flow/screens/main_screens/add_events/events.dart';
-import 'package:peak_flow/screens/main_screens/insights.dart';
-import 'package:peak_flow/screens/main_screens/user_profile.dart';
+import 'package:watt/screens/main_screens/add_events/events.dart';
+import 'package:watt/screens/main_screens/insights.dart';
+import 'package:watt/screens/main_screens/user_profile.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -297,8 +297,8 @@ class _PillNavItem extends StatelessWidget {
             AnimatedContainer(
               duration: const Duration(milliseconds: 180),
               curve: Curves.easeOut,
-              width: 46,
-              height: 46,
+              width: 36,
+              height: 36,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: selected

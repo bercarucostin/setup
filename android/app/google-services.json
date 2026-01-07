@@ -32,10 +32,10 @@
               "client_type": 3
             },
             {
-              "client_id": "753333991622-a2s3c6ate3id7n6e9qk82apv6ps1bn9q.apps.googleusercontent.com",
+              "client_id": "753333991622-78f3guicd5bs8d0f9jg8jeso45pd6i79.apps.googleusercontent.com",
               "client_type": 2,
               "ios_info": {
-                "bundle_id": "com.example.peakFlow"
+                "bundle_id": "com.trywatt.watt"
               }
             }
           ]

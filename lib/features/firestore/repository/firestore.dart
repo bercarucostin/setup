@@ -213,4 +213,73 @@ class FirestoreRepository {
         .snapshots()
         .map((snap) => snap.data());
   }
+
+  Future<void> deleteUserData(String uid) async {
+    final userRef = _firestore.collection('users').doc(uid);
+
+    // 1) eventDays/{day}/events/*
+    final eventDaysSnap = await userRef.collection('eventDays').get();
+    for (final dayDoc in eventDaysSnap.docs) {
+      await _deleteCollectionInBatches(dayDoc.reference.collection('events'));
+      await dayDoc.reference.delete();
+    }
+
+    // 2) energyFeedbackDays/{day}/feedback/*
+    final feedbackDaysSnap = await userRef
+        .collection('energyFeedbackDays')
+        .get();
+    for (final dayDoc in feedbackDaysSnap.docs) {
+      await _deleteCollectionInBatches(dayDoc.reference.collection('feedback'));
+      await dayDoc.reference.delete();
+    }
+
+    // 3) energyModel/default
+    // Delete the known doc; ignore if it doesn't exist.
+    try {
+      await userRef.collection('energyModel').doc('default').delete();
+    } on FirebaseException catch (e) {
+      if (e.code != 'not-found') rethrow;
+    }
+
+    // 4) Delete the root user doc last
+    await userRef.delete();
+  }
+
+  /// Deletes all documents from [collectionRef] in batches (safe under 500 limit).
+  Future<void> _deleteCollectionInBatches(
+    CollectionReference<Map<String, dynamic>> collectionRef, {
+    int batchSize = 450,
+  }) async {
+    while (true) {
+      final snap = await collectionRef.limit(batchSize).get();
+      if (snap.docs.isEmpty) return;
+
+      final batch = _firestore.batch();
+      for (final doc in snap.docs) {
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
+
+      if (snap.docs.length < batchSize) return;
+    }
+  }
+
+  Future<DocumentReference<Map<String, dynamic>>> submitFeedback({
+    required String message,
+    required String uid,
+    String? email,
+    String? displayName,
+  }) async {
+    return saveData(
+      collectionPath: 'feedback',
+      merge: false, // new doc, never merge into existing
+      data: {
+        'uid': uid,
+        'email': email,
+        'displayName': displayName,
+        'message': message,
+        'createdAt': FieldValue.serverTimestamp(),
+      },
+    );
+  }
 }

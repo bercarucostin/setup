@@ -60,12 +60,13 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyAtj7dJSoMCR0foEx9W2DTVaFVSNMRqeHg',
-    appId: '1:753333991622:ios:b79386a9f1e221a71d3fc7',
+    appId: '1:753333991622:ios:dc21525153d4acc91d3fc7',
     messagingSenderId: '753333991622',
     projectId: 'peak-flow-91fc5',
     databaseURL: 'https://peak-flow-91fc5-default-rtdb.europe-west1.firebasedatabase.app',
     storageBucket: 'peak-flow-91fc5.firebasestorage.app',
-    iosClientId: '753333991622-a2s3c6ate3id7n6e9qk82apv6ps1bn9q.apps.googleusercontent.com',
-    iosBundleId: 'com.example.peakFlow',
+    iosClientId: '753333991622-78f3guicd5bs8d0f9jg8jeso45pd6i79.apps.googleusercontent.com',
+    iosBundleId: 'com.trywatt.watt',
   );
+
 }

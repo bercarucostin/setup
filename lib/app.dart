@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:peak_flow/features/router/models/router.dart';
+import 'package:watt/features/router/models/router.dart';
 
 class App extends ConsumerWidget {
   const App({super.key});

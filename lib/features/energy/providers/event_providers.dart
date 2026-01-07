@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:peak_flow/features/energy/models/event.dart';
-import 'package:peak_flow/features/energy/repositories/event_repository.dart';
-import 'package:peak_flow/features/firestore/providers/providers.dart'; // firestoreRepositoryProvider
+import 'package:watt/features/energy/models/event.dart';
+import 'package:watt/features/energy/repositories/event_repository.dart';
+import 'package:watt/features/firestore/providers/providers.dart'; // firestoreRepositoryProvider
 
 /// 1) Repository provider
 final eventRepositoryProvider = Provider<EventRepository>((ref) {

@@ -2,11 +2,11 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:peak_flow/features/auth/providers/providers.dart'; // firebaseAuthProvider
-import 'package:peak_flow/features/energy/models/event.dart';
-import 'package:peak_flow/features/energy/providers/energy_providers.dart';
-import 'package:peak_flow/features/energy/providers/event_providers.dart';
-import 'package:peak_flow/screens/main_screens/add_events/history.dart';
+import 'package:watt/features/auth/providers/providers.dart'; // firebaseAuthProvider
+import 'package:watt/features/energy/models/event.dart';
+import 'package:watt/features/energy/providers/energy_providers.dart';
+import 'package:watt/features/energy/providers/event_providers.dart';
+import 'package:watt/screens/main_screens/add_events/history.dart';
 
 const double _rCard = 18;
 const double _pad = 10;
@@ -459,6 +459,7 @@ class _EventCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // ignore: unused_local_variable
     final (effectText, effectFg, effectBg) = _effectPill(event.initialEffect);
 
     return AnimatedBuilder(

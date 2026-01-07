@@ -4,14 +4,16 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import 'package:peak_flow/features/auth/models/auth_state.dart';
-import 'package:peak_flow/features/auth/providers/auth_controller_provider.dart';
+import 'package:watt/features/auth/models/auth_state.dart';
+import 'package:watt/features/auth/providers/auth_controller_provider.dart';
+import 'package:watt/features/auth/providers/providers.dart';
 
-import 'package:peak_flow/screens/auth/sign_in.dart';
-import 'package:peak_flow/screens/auth/sign_up.dart';
-import 'package:peak_flow/screens/checking_screen.dart';
+import 'package:watt/screens/auth/sign_in.dart';
+import 'package:watt/screens/auth/sign_up.dart';
+import 'package:watt/screens/checking_screen.dart';
+import 'package:watt/screens/home_screen.dart';
 
-import 'package:peak_flow/screens/profile_configuration/onboarding_flow_screen.dart';
+import 'package:watt/screens/profile_configuration/onboarding_flow_screen.dart';
 
 /// Minimal Listenable (NOT ChangeNotifier) for go_router refreshListenable.
 class RouterRefreshListenable implements Listenable {
@@ -44,6 +46,10 @@ final routerRefreshProvider = Provider<RouterRefreshListenable>((ref) {
   final refresh = RouterRefreshListenable();
 
   ref.listen<AuthState>(authControllerProvider, (_, __) => refresh.notify());
+  ref.listen<bool>(
+    accountDeletionInProgressProvider,
+    (_, __) => refresh.notify(),
+  );
 
   ref.onDispose(refresh.dispose);
   return refresh;
@@ -55,7 +61,7 @@ final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     initialLocation: '/',
     refreshListenable: refresh,
-
+    observers: [RouteLoggingObserver()],
     redirect: (context, state) {
       final auth = ref.read(authControllerProvider);
       final loc = state.uri.path;
@@ -64,21 +70,52 @@ final routerProvider = Provider<GoRouter>((ref) {
       final isSignup = loc == '/signup';
       final isAuthPage = isLogin || isSignup;
       final isOnboarding = loc == '/onboarding';
+      final isCheckingRoute = loc == '/checking';
 
-      // While figuring auth/profile, don't bounce around.
-      if (auth is AuthLoading || auth is CheckingProfile) return null;
+      final isDeleting = ref.read(accountDeletionInProgressProvider);
 
-      // Not signed in -> only allow /login and /signup
+      debugPrint(
+        'ROUTER redirect check: loc=$loc full=${state.uri} '
+        'auth=${auth.runtimeType} deleting=$isDeleting',
+      );
+
+      final isCheckingState =
+          isDeleting || auth is AuthLoading || auth is CheckingProfile;
+
+      if (isCheckingState) {
+        final msg = isDeleting
+            ? 'All your data is being fully removed from our records!'
+            : (auth is CheckingProfile)
+            ? 'Getting things ready for you!'
+            : 'Please wait until we get you in!';
+
+        final encoded = Uri.encodeComponent(msg);
+
+        // If we're already on /checking, keep us there but update the query
+        return loc == '/checking'
+            ? '/checking?m=$encoded'
+            : '/checking?m=$encoded';
+      }
+
+      // 2) If we are on /checking but no longer checking, move on
+      if (isCheckingRoute) {
+        if (auth is Unauthenticated) return '/login';
+        if (auth is IncompleteProfile) return '/onboarding';
+        if (auth is Authenticated) return '/';
+        return '/login';
+      }
+
+      // 3) Not signed in -> only allow /login and /signup
       if (auth is Unauthenticated) {
         return isAuthPage ? null : '/login';
       }
 
-      // Signed in but incomplete -> force onboarding
+      // 4) Signed in but incomplete -> force onboarding
       if (auth is IncompleteProfile) {
         return isOnboarding ? null : '/onboarding';
       }
 
-      // Signed in and complete -> block auth/onboarding pages
+      // 5) Signed in and complete -> block auth/onboarding pages
       if (auth is Authenticated) {
         if (isAuthPage || isOnboarding) return '/';
         return null;
@@ -86,15 +123,50 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       return null;
     },
-
     routes: [
-      GoRoute(path: '/', builder: (_, __) => const RootGate()),
+      GoRoute(path: '/', builder: (_, __) => const HomeScreen()),
       GoRoute(path: '/login', builder: (_, __) => const SignInScreen()),
       GoRoute(path: '/signup', builder: (_, __) => const SignUpScreen()),
       GoRoute(
         path: '/onboarding',
         builder: (_, __) => const OnboardingFlowScreen(),
       ),
+      GoRoute(
+        path: '/checking',
+        builder: (_, state) =>
+            CheckingScreen(message: state.uri.queryParameters['m'] ?? '…'),
+      ),
     ],
   );
 });
+
+class RouteLoggingObserver extends NavigatorObserver {
+  void _log(
+    String action,
+    Route<dynamic>? route,
+    Route<dynamic>? previousRoute,
+  ) {
+    final name = route?.settings.name;
+    final prevName = previousRoute?.settings.name;
+    // name is often null with go_router; still useful for push/pop visibility
+    debugPrint('ROUTER $action | name=$name | from=$prevName | route=$route');
+  }
+
+  @override
+  void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    _log('PUSH', route, previousRoute);
+    super.didPush(route, previousRoute);
+  }
+
+  @override
+  void didReplace({Route<dynamic>? newRoute, Route<dynamic>? oldRoute}) {
+    _log('REPLACE', newRoute, oldRoute);
+    super.didReplace(newRoute: newRoute, oldRoute: oldRoute);
+  }
+
+  @override
+  void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    _log('POP', route, previousRoute);
+    super.didPop(route, previousRoute);
+  }
+}

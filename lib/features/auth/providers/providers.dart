@@ -1,7 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:peak_flow/features/auth/repositories/auth_repository.dart';
-import 'package:peak_flow/features/firestore/providers/providers.dart';
+import 'package:watt/features/auth/repositories/auth_repository.dart';
+import 'package:watt/features/firestore/providers/providers.dart';
 
 // INIT FIREBASE AUTH PROVIDER
 final firebaseAuthProvider = Provider<FirebaseAuth>((ref) {
@@ -24,3 +24,14 @@ final userProfileStreamProvider = StreamProvider.autoDispose
           .read(firestoreRepositoryProvider)
           .watchDocument(collectionPath: 'users', docId: uid);
     });
+
+class AccountDeletionFlag extends Notifier<bool> {
+  @override
+  bool build() => false;
+
+  void start() => state = true;
+  void stop() => state = false;
+}
+
+final accountDeletionInProgressProvider =
+    NotifierProvider<AccountDeletionFlag, bool>(AccountDeletionFlag.new);
