@@ -8,12 +8,20 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:753333991622:android:40cd8a1b270c262a1d3fc7",
+        "mobilesdk_app_id": "1:753333991622:android:410c5f8a03197f631d3fc7",
         "android_client_info": {
-          "package_name": "com.example.peak_flow"
+          "package_name": "com.trywatt.watt"
         }
       },
       "oauth_client": [
+        {
+          "client_id": "753333991622-68s4gs5jaga72tid2natf1k9oppn56bq.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.trywatt.watt",
+            "certificate_hash": "e4cae0deba8b59343c523a244957715e4b645155"
+          }
+        },
         {
           "client_id": "753333991622-fhs2o2at65mnp8v1deia98kgrlhf507f.apps.googleusercontent.com",
           "client_type": 3

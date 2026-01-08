@@ -51,7 +51,7 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyDfV1-5MOyZ8gIn6MQ_lZiXpXEjOGi2pcs',
-    appId: '1:753333991622:android:40cd8a1b270c262a1d3fc7',
+    appId: '1:753333991622:android:410c5f8a03197f631d3fc7',
     messagingSenderId: '753333991622',
     projectId: 'peak-flow-91fc5',
     databaseURL: 'https://peak-flow-91fc5-default-rtdb.europe-west1.firebasedatabase.app',

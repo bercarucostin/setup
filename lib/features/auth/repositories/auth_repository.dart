@@ -5,6 +5,7 @@ class AuthRepository {
   AuthRepository(this._auth);
 
   final FirebaseAuth _auth;
+  final GoogleSignIn _googleSignIn = GoogleSignIn(scopes: ['email', 'profile']);
 
   // ---------------------------------------------------------------------------
   // Email & password (SIGN IN)
@@ -30,23 +31,27 @@ class AuthRepository {
   // ---------------------------------------------------------------------------
 
   Future<void> signInWithGoogle() async {
-    final googleUser = await GoogleSignIn().signIn();
+    try {
+      final googleUser = await _googleSignIn.signIn();
+      if (googleUser == null) {
+        throw FirebaseAuthException(
+          code: 'google-sign-in-aborted',
+          message: 'Google sign-in was cancelled by the user.',
+        );
+      }
 
-    if (googleUser == null) {
-      throw FirebaseAuthException(
-        code: 'google-sign-in-aborted',
-        message: 'Google sign-in was cancelled by the user.',
+      final googleAuth = await googleUser.authentication;
+
+      final credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
       );
+
+      await _auth.signInWithCredential(credential);
+    } catch (e) {
+      print('Google Sign-In Error: $e');
+      rethrow;
     }
-
-    final googleAuth = await googleUser.authentication;
-
-    final credential = GoogleAuthProvider.credential(
-      accessToken: googleAuth.accessToken,
-      idToken: googleAuth.idToken,
-    );
-
-    await _auth.signInWithCredential(credential);
   }
 
   // ---------------------------------------------------------------------------
@@ -93,7 +98,7 @@ class AuthRepository {
       );
     }
 
-    final googleUser = await GoogleSignIn().signIn();
+    final googleUser = await _googleSignIn.signIn();
     if (googleUser == null) {
       throw FirebaseAuthException(
         code: 'google-reauth-aborted',

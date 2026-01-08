@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:watt/features/auth/models/auth_state.dart';
 import 'package:watt/features/auth/providers/auth_controller_provider.dart';
 import 'package:watt/features/auth/providers/providers.dart'; // firebaseAuthProvider, userProfileStreamProvider
+import 'package:watt/features/energy/providers/energy_providers.dart';
 import 'package:watt/features/firestore/providers/providers.dart'; // firestoreRepositoryProvider
 
 class ProfileTabBody extends ConsumerStatefulWidget {
@@ -133,6 +134,10 @@ class _ProfileTabBodyState extends ConsumerState<ProfileTabBody> {
 
     if (!mounted || selected == null) return;
     await _mergeUserData({'chronotype': selected});
+    final user = ref.read(firebaseAuthProvider).currentUser;
+    if (user != null) {
+      await ref.read(energyRepositoryProvider).deleteEnergyModel(user.uid);
+    }
   }
 
   Future<void> _editSleepSchedule({String? wakeTime, String? bedTime}) async {
@@ -165,6 +170,7 @@ class _ProfileTabBodyState extends ConsumerState<ProfileTabBody> {
       'wakeHour': wakeH,
       'bedHour': bedH,
     });
+    ref.invalidate(energyInsightsProvider);
   }
 
   Future<void> _editGoal(String? current) async {
