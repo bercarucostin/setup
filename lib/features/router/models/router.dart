@@ -61,7 +61,7 @@ final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     initialLocation: '/',
     refreshListenable: refresh,
-    observers: [RouteLoggingObserver()],
+    //observers: [RouteLoggingObserver()],
     redirect: (context, state) {
       final auth = ref.read(authControllerProvider);
       final loc = state.uri.path;
@@ -74,10 +74,10 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       final isDeleting = ref.read(accountDeletionInProgressProvider);
 
-      debugPrint(
-        'ROUTER redirect check: loc=$loc full=${state.uri} '
-        'auth=${auth.runtimeType} deleting=$isDeleting',
-      );
+      // debugPrint(
+      //   'ROUTER redirect check: loc=$loc full=${state.uri} '
+      //   'auth=${auth.runtimeType} deleting=$isDeleting',
+      // );
 
       final isCheckingState =
           isDeleting || auth is AuthLoading || auth is CheckingProfile;

@@ -182,9 +182,9 @@ class _AddEventsScreenState extends ConsumerState<AddEventsScreen>
     }
 
     final defaultEvents = ref.watch(defaultEventsProvider);
-    print(defaultEvents);
-    final icon = Icons.sports; // IconData
-    print('decimal: ${icon.codePoint}');
+    // print(defaultEvents);
+    // final icon = Icons.sports; // IconData
+    // print('decimal: ${icon.codePoint}');
 
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.background,

@@ -107,16 +107,23 @@ class _ProfileTabBodyState extends ConsumerState<ProfileTabBody> {
                 if (!i.isEven) return const Divider(height: 1, thickness: 1);
 
                 final type = options[i ~/ 2];
+                final isCurrent = type == current;
+
                 final tile = ListTile(
                   contentPadding: const EdgeInsets.symmetric(horizontal: 8),
                   leading: _chronotypeIcon(type),
                   title: Text(
                     type,
                     style: TextStyle(
-                      fontWeight: type == current ? FontWeight.bold : null,
+                      fontWeight: isCurrent ? FontWeight.bold : null,
+                      color: isCurrent ? Colors.black38 : null, // optional
                     ),
                   ),
-                  onTap: () => Navigator.pop(context, type),
+                  trailing: isCurrent
+                      ? const Icon(Icons.check, size: 18)
+                      : null, // optional
+                  enabled: !isCurrent, // optional (also affects style)
+                  onTap: isCurrent ? null : () => Navigator.pop(context, type),
                 );
 
                 return type == 'Midday'
@@ -133,11 +140,16 @@ class _ProfileTabBodyState extends ConsumerState<ProfileTabBody> {
     );
 
     if (!mounted || selected == null) return;
-    await _mergeUserData({'chronotype': selected});
+
+    // Extra safety: if somehow the same value comes back, do nothing.
+    if (selected == current) return;
+
     final user = ref.read(firebaseAuthProvider).currentUser;
     if (user != null) {
       await ref.read(energyRepositoryProvider).deleteEnergyModel(user.uid);
     }
+
+    await _mergeUserData({'chronotype': selected});
   }
 
   Future<void> _editSleepSchedule({String? wakeTime, String? bedTime}) async {

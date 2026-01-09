@@ -8,6 +8,7 @@ import 'package:watt/features/energy/providers/energy_providers.dart';
 // Widgets:
 import 'package:watt/features/energy/widgets/compact_view_tiles.dart';
 import 'package:watt/features/energy/widgets/tiles.dart';
+import 'package:watt/features/energy/widgets/tilesv2.dart';
 
 enum InsightsView { detailed, compact }
 

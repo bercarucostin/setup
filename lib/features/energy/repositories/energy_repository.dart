@@ -25,13 +25,22 @@ class EnergyRepository {
       subDocId: 'default',
     );
 
+    print("""Loading energy model for userId=$userId "
+        "chronotype=$chronotype energyDoc.exists=${energyDoc.exists}""");
+
     if (energyDoc.exists && energyDoc.data() != null) {
       return EnergyModel.fromFirestore(profile, energyDoc.data()!);
     }
 
+    print(energyDoc.data());
+
     final defaultDoc = await _firestoreRepo.getData(
       collectionPath: 'energyModelDefaults',
       docId: chronotype,
+    );
+
+    print(
+      'Loaded default energy model for chronotype=$chronotype exists=${defaultDoc.exists}',
     );
 
     final data = defaultDoc.data();
@@ -40,6 +49,8 @@ class EnergyRepository {
         'Missing energyModelDefaults doc for chronotype=$chronotype',
       );
     }
+
+    print(data['circadianPeak']);
 
     final model = EnergyModel.fromFirestore(profile, data);
 

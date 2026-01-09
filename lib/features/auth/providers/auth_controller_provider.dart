@@ -23,19 +23,19 @@ class AuthController extends Notifier<AuthState> {
 
     final profileAsync = ref.watch(userProfileStreamProvider(user.uid));
 
-    debugPrint('AuthController uid=${user.uid} profileAsync=$profileAsync');
+    //debugPrint('AuthController uid=${user.uid} profileAsync=$profileAsync');
 
     if (profileAsync.isLoading) return CheckingProfile(user);
 
     final profile = profileAsync.value;
-    debugPrint('AuthController uid=${user.uid} profile=$profile');
+    //debugPrint('AuthController uid=${user.uid} profile=$profile');
 
     if (profile == null) return IncompleteProfile(user);
 
     final hasCompletedProfile = profile['hasCompletedProfile'] == true;
-    debugPrint(
-      'AuthController uid=${user.uid} hasCompletedProfile=$hasCompletedProfile',
-    );
+    // debugPrint(
+    //   'AuthController uid=${user.uid} hasCompletedProfile=$hasCompletedProfile',
+    // );
 
     if (!hasCompletedProfile) return IncompleteProfile(user);
 
