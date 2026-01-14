@@ -1,18 +1,16 @@
 import 'dart:math';
+import 'package:watt/utils/utils.dart';
+
 import 'event.dart';
 
 class EnergyModel {
   int defaultBedHour; // Added bedHour to match the original model
   int defaultWakeHour;
-  int? wakeHour;
-  int? bedHour;
-  int? bedHourLastDay;
-  int? bedHourLastDayEpochDay;
-  int? hoursSlept;
-  num circadianPeak;
+  int hoursSlept;
+  num circadianPeakHour;
   double sPrev;
   double? sPrevNext;
-  int? sPrevNextEpochDay; // which epoch-day (local) this sPrevNext applies to
+  String? sPrevNextDay; // date (local) this sPrevNext applies to
   double sPrevDefault;
   double wS;
   double wC;
@@ -27,15 +25,11 @@ class EnergyModel {
   EnergyModel({
     required this.defaultBedHour,
     required this.defaultWakeHour,
-    this.wakeHour,
-    this.bedHour,
-    this.bedHourLastDay,
-    this.bedHourLastDayEpochDay,
-    this.hoursSlept,
-    required this.circadianPeak,
+    required this.hoursSlept,
+    required this.circadianPeakHour,
     required this.sPrev,
     this.sPrevNext,
-    this.sPrevNextEpochDay,
+    this.sPrevNextDay,
     required this.sPrevDefault,
     required this.wS,
     required this.wC,
@@ -47,72 +41,55 @@ class EnergyModel {
     required this.lrTauSleep,
   });
 
-  static double _d(Map<String, dynamic> m, String k, double fallback) {
-    final v = m[k];
-    if (v == null) return fallback;
-    if (v is num) return v.toDouble();
-    throw StateError('Field "$k" must be a number, got ${v.runtimeType}');
-  }
-
-  static int _i(Map<String, dynamic> m, String k, int fallback) {
-    final v = m[k];
-    if (v == null) return fallback;
-    if (v is num) return v.toInt();
-    throw StateError('Field "$k" must be a number, got ${v.runtimeType}');
-  }
-
   factory EnergyModel.fromFirestore(
     Map<String, dynamic> userData,
     Map<String, dynamic> energyModelData,
   ) {
-    final defaultWake = _i(userData, 'wakeHour', 7);
-    final defaultBed = _i(userData, 'bedHour', 23);
+    final defaultWakeHour = intWithFallback(userData, 'wakeHour', 7);
+    final defaultBedHour = intWithFallback(userData, 'bedHour', 23);
+    final sPrevDefault = doubleWithFallback(
+      energyModelData,
+      'sPrevDefault',
+      0.5,
+    );
 
     return EnergyModel(
-      defaultWakeHour: defaultWake,
-      defaultBedHour: defaultBed,
+      defaultWakeHour: defaultWakeHour,
+      defaultBedHour: defaultBedHour,
+      hoursSlept: hourDifference(defaultBedHour, defaultWakeHour),
+      circadianPeakHour: intWithFallback(userData, 'circadianPeakHour', 9),
 
-      wakeHour: _i(energyModelData, 'wakeHour', defaultWake),
-      bedHour: _i(energyModelData, 'bedHour', defaultBed),
+      sPrev: doubleWithFallback(energyModelData, 'sPrev', sPrevDefault),
+      sPrevNext: doubleWithFallback(energyModelData, 'sPrevNext', sPrevDefault),
+      sPrevNextDay: energyModelData['sPrevNextDay'] as String?,
+      sPrevDefault: sPrevDefault,
 
-      bedHourLastDay: (energyModelData['bedHourLastDay'] as num?)?.toInt(),
-      bedHourLastDayEpochDay:
-          (energyModelData['bedHourLastDayEpochDay'] as num?)?.toInt(),
-      hoursSlept: (energyModelData['hoursSlept'] as num?)?.toInt(),
-
-      circadianPeak: _d(energyModelData, 'circadianPeak', 15.0),
-      sPrev: _d(energyModelData, 'sPrev', 0.5),
-      sPrevNext: (energyModelData['sPrevNext'] as num?)?.toDouble(),
-      sPrevNextEpochDay: (energyModelData['sPrevNextEpochDay'] as num?)
-          ?.toInt(),
-      sPrevDefault: _d(energyModelData, 'sPrevDefault', 0.5),
-
-      wS: _d(energyModelData, 'wS', 0.5),
-      wC: _d(energyModelData, 'wC', 0.5),
+      wS: doubleWithFallback(energyModelData, 'wS', 0.5),
+      wC: doubleWithFallback(energyModelData, 'wC', 0.5),
 
       // these were num/double in your model — keep numeric
-      tau0: _d(energyModelData, 'tau0', 16.0),
-      tauSleep: _d(energyModelData, 'tauSleep', 4.5),
-
-      lrW: _d(energyModelData, 'lrW', 0.01),
-      lrCircadianPeak: _d(energyModelData, 'lrCircadianPeak', 0.01),
-      lrTau0: _d(energyModelData, 'lrTau0', 0.001),
-      lrTauSleep: _d(energyModelData, 'lrTauSleep', 0.001),
+      tau0: doubleWithFallback(energyModelData, 'tau0', 16.0),
+      tauSleep: doubleWithFallback(energyModelData, 'tauSleep', 4.5),
+      lrW: doubleWithFallback(energyModelData, 'lrW', 0.01),
+      lrCircadianPeak: doubleWithFallback(
+        energyModelData,
+        'lrCircadianPeak',
+        0.01,
+      ),
+      lrTau0: doubleWithFallback(energyModelData, 'lrTau0', 0.001),
+      lrTauSleep: doubleWithFallback(energyModelData, 'lrTauSleep', 0.001),
     );
   }
 
   // Convert EnergyModel to Firestore data
   Map<String, dynamic> toFirestore() {
     return {
-      'wakeHour': wakeHour,
-      'bedHour': bedHour,
-      'bedHourLastDay': bedHourLastDay,
-      'bedHourLastDayEpochDay': bedHourLastDayEpochDay,
+      'defaultWakeHour': defaultWakeHour,
+      'defaultBedHour': defaultBedHour,
       'hoursSlept': hoursSlept,
-      'circadianPeak': circadianPeak,
+      'circadianPeakHour': circadianPeakHour,
       'sPrev': sPrev,
       'sPrevNext': sPrevNext,
-      'sPrevNextEpochDay': sPrevNextEpochDay,
       'sPrevDefault': sPrevDefault,
       'wS': wS,
       'wC': wC,
@@ -125,47 +102,40 @@ class EnergyModel {
     };
   }
 
-  int _epochDay(DateTime dt) =>
-      DateTime(dt.year, dt.month, dt.day).millisecondsSinceEpoch ~/ 86400000;
-
   double _computeS0() {
-    return sPrev * exp((0 - hoursSlept!) / tauSleep);
+    return sPrev * exp((0 - hoursSlept) / tauSleep);
   }
 
   double _computeS(int hour) {
-    final int tAwake = (hour - (wakeHour ?? defaultWakeHour)) % 24;
+    final int tAwake = hourDifference(defaultWakeHour, hour);
     return 1 - (1 - _computeS0()) * exp(-tAwake / tau0);
   }
 
+  // double _computeC(int hour) {
+  //   // Primary wave (24h period)
+  //   double c1 = sin(2 * pi * (hour - circadianPeakHour) / 24 + pi / 2);
+
+  //   // Secondary wave (12h period) - The "Post-Lunch Dip"
+  //   // Amplitude 0.5 is heuristic; Phase shift aligns dip to ~6-7 hours after peak
+  //   double c2 = 0.5 * sin(4 * pi * (hour - circadianPeakHour) / 24 + pi);
+
+  //   // Normalize to roughly [-1, 1]
+  //   return (c1 + c2) / 1.5;
+  // }
+
   double _computeC(int hour) {
     // +pi/2 so that C is near-max at the peak hour
-    return sin(2 * pi * (hour - circadianPeak) / 24 + pi / 2);
+    return sin(2 * pi * (hour - circadianPeakHour) / 24 + pi / 2);
   }
-
-  // void updateHoursSlept(int hoursSlept) {
-  //   this.hoursSlept = hoursSlept;
-  //   this.hoursSleptEpochDay = _epochDay(DateTime.now());
-  // }
 
   double predict(int hour, bool firstHour, bool lastHour, List<Event> events) {
     if (firstHour == true) {
       // sPrev update
-      if (sPrevNextEpochDay != null &&
-          sPrevNextEpochDay == _epochDay(DateTime.now())) {
-        sPrev = sPrevNext!;
-      } else {
-        sPrev = sPrevDefault;
+      if (sPrevNextDay != null &&
+          sPrevNextDay ==
+              customDateString(dateWokeUp(defaultWakeHour, defaultBedHour))) {
+        sPrev = sPrevNext ?? sPrev;
       }
-
-      // hoursSlept update
-      if (bedHourLastDayEpochDay != null &&
-          bedHourLastDayEpochDay == _epochDay(DateTime.now())) {
-        bedHour = bedHourLastDay!;
-      } else {
-        bedHour = defaultBedHour;
-      }
-      wakeHour = hour;
-      hoursSlept = (hour - bedHour!) % 24;
     }
 
     final double S = _computeS(hour);
@@ -173,18 +143,9 @@ class EnergyModel {
 
     if (lastHour) {
       sPrevNext = S;
-      bedHourLastDay = hour;
-      if ([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].contains(hour)) {
-        sPrevNextEpochDay = _epochDay(DateTime.now());
-        bedHourLastDayEpochDay = _epochDay(DateTime.now());
-      } else {
-        sPrevNextEpochDay = _epochDay(
-          DateTime.now().add(const Duration(days: 1)),
-        );
-        bedHourLastDayEpochDay = _epochDay(
-          DateTime.now().add(const Duration(days: 1)),
-        );
-      }
+      sPrevNextDay = customDateString(
+        dateWokeUp(defaultWakeHour, defaultBedHour).add(Duration(days: 1)),
+      );
     }
 
     final double base = wS * (1 - S) + wC * ((C + 1) / 2);
@@ -196,15 +157,18 @@ class EnergyModel {
           .fold<double>(0.0, (a, b) => a + b);
       energy += delta;
     }
-    // print('Energy prediction for hour $hour: $energy');
-    // Keep result interpretable for UI/learning
     return energy.clamp(0.0, 100.0).toDouble();
   }
 
-  void updateWeights(int hour, double actualEnergy, String userId) {
+  void updateWeights(
+    int hour,
+    double actualEnergy,
+    String userId,
+    List<Event> events,
+  ) {
     final double S = _computeS(hour);
     final double C = _computeC(hour);
-    final double ePred = predict(hour, false, false, []);
+    final double ePred = predict(hour, false, false, events);
 
     // Map [0,100] -> [-1,1] for symmetric error surface
     final double rawPred = (ePred / 100.0) * 2.0 - 1.0;
@@ -217,46 +181,20 @@ class EnergyModel {
     wS -= lrW * gradWS;
     wC -= lrW * gradWC;
 
-    // Clamp to [0,1] then renormalize to sum to 1
+    // Clamp to [0,1] independently - NO normalization
+    // Normalization inverts gradient direction when component magnitudes differ
     wS = wS.clamp(0.0, 1.0).toDouble();
     wC = wC.clamp(0.0, 1.0).toDouble();
-    double total = wS + wC;
-    if (total == 0.0) {
-      wS = 0.5;
-      wC = 0.5;
-      total = 1.0;
-    } else {
-      wS /= total;
-      wC /= total;
-    }
 
     // --- Update circadian peak (phase) ---
     // Derivative matches the +pi/2 phase used in _computeC
     final double dCdp =
         -(2 * pi / 24.0) *
-        cos(2 * pi * ((hour - circadianPeak) % 24) / 24.0 + pi / 2);
+        cos(2 * pi * ((hour - circadianPeakHour) % 24) / 24.0 + pi / 2);
     final double gradPhi = error * wC * 0.5 * dCdp;
 
-    double newPeak = circadianPeak - lrCircadianPeak * gradPhi;
+    double newPeak = circadianPeakHour - lrCircadianPeak * gradPhi;
     // Wrap safely into [0,24)
-    circadianPeak = (((newPeak % 24.0) + 24.0) % 24.0).toDouble();
-
-    // --- Update tau0 (wake time constant) ---
-    final int tAwake = max(hour - (wakeHour ?? defaultWakeHour), 0);
-    final double dEtau0 = wS * (1.0 - S) * (tAwake / (tau0 * tau0));
-    tau0 = (tau0 - lrTau0 * error * dEtau0).clamp(12.0, 20.0).toDouble();
-
-    // --- Update tauSleep (sleep dissipation) ---
-    final double S0 = _computeS0();
-    final double expAwake = exp(-tAwake / tau0);
-    final double dEtauSleep =
-        -wS *
-        expAwake *
-        S0 *
-        ((hoursSlept ?? (defaultWakeHour - defaultBedHour) % 24) /
-            (tauSleep * tauSleep));
-    tauSleep = (tauSleep - lrTauSleep * error * dEtauSleep)
-        .clamp(3.0, 6.0)
-        .toDouble();
+    circadianPeakHour = (((newPeak % 24.0) + 24.0) % 24.0).toDouble();
   }
 }

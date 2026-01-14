@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:watt/features/energy/models/event.dart';
 import 'package:watt/features/firestore/repository/firestore.dart';
+import 'package:watt/utils/utils.dart';
 
 class EventRepository {
   EventRepository(this._firestoreRepo, {FirebaseFirestore? firestore})
@@ -8,11 +9,6 @@ class EventRepository {
 
   final FirestoreRepository _firestoreRepo;
   final FirebaseFirestore _firestore;
-
-  int _epochDay(DateTime dt) =>
-      DateTime(dt.year, dt.month, dt.day).millisecondsSinceEpoch ~/ 86400000;
-
-  String _todayEpochDay() => _epochDay(DateTime.now()).toString();
 
   // --------------------------
   // Defaults (public collection)
@@ -29,17 +25,13 @@ class EventRepository {
     }).toList();
   }
 
-  // --------------------------
-  // Today events (per-user)
-  // --------------------------
-  Stream<List<Event>> watchUserEventsForToday(String userId) {
-    final day = _todayEpochDay();
-
+  // -------------------- Today's Events - Stream --------------------
+  Stream<List<Event>> watchUserEventsForToday(String userId, DateTime today) {
     return _firestore
         .collection('users')
         .doc(userId)
         .collection('eventDays')
-        .doc(day)
+        .doc(customDateString(today))
         .collection('events')
         .snapshots()
         .map((qs) {
@@ -64,9 +56,10 @@ class EventRepository {
 
   Future<void> addEventFromTemplate({
     required String userId,
+    required DateTime today,
     required Event template,
     required int startHour,
-    required double duration,
+    required double intensity,
   }) async {
     // Build event payload from the template defaults + selected time
     final data = template.toFirestore();
@@ -74,11 +67,12 @@ class EventRepository {
     // enforce the fields your screen needs
     data['name'] = template.name;
     data['startHour'] = startHour;
-    data['duration'] = duration;
+    data['intensity'] = intensity;
+    data['createdAt'] = nowTimestampString();
 
     await _firestoreRepo.saveUserEvent(
       userId: userId,
-      epochDay: _todayEpochDay(),
+      epochDay: customDateString(today),
       eventData: data,
     );
   }
@@ -94,6 +88,4 @@ class EventRepository {
       epochDay: epochDay,
     );
   }
-
-  String todayEpochDayForDeletes() => _todayEpochDay();
 }

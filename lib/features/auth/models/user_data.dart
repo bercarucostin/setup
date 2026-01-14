@@ -1,3 +1,5 @@
+import 'package:watt/utils/utils.dart';
+
 class UserData {
   final String? fullName;
   final String? birthday;
@@ -51,7 +53,7 @@ class UserData {
       'wakeHour': wakeHour,
       'bedHour': bedHour,
       'email': email,
-      'createdAt': DateTime.now(),
+      'createdAt': nowTimestampString(),
       'goal': goal,
     };
   }

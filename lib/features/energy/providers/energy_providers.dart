@@ -84,7 +84,6 @@ class EnergyInsightsController extends AsyncNotifier<EnergyInsightsState> {
     final model = await repo.loadOrDefaultModel(
       userId: user.uid,
       profile: profile,
-      chronotype: chronotype as String,
     );
 
     // 4) Load today events + feedback
@@ -132,6 +131,13 @@ class EnergyInsightsController extends AsyncNotifier<EnergyInsightsState> {
     final record = EnergyFeedbackRecord(
       hour: hour,
       feedback: feedback,
+      wS: model.wS,
+      wC: model.wC,
+      circadianPeakHour: model.circadianPeakHour,
+      hoursSlept: model.hoursSlept,
+      sPrev: model.sPrev,
+      wakeHour: model.defaultWakeHour,
+      bedHour: model.defaultBedHour,
       predictedEnergy: predictedEnergy,
     );
     await repo.saveUserEnergyFeedback(userId: user.uid, record: record);
@@ -140,23 +146,28 @@ class EnergyInsightsController extends AsyncNotifier<EnergyInsightsState> {
     double adjusted = predictedEnergy;
     switch (feedback) {
       case EnergyFeedback.muchHigher:
-        adjusted += 10;
+        adjusted *= 1.2;
         break;
       case EnergyFeedback.higher:
-        adjusted += 5;
+        adjusted *= 1.1;
         break;
       case EnergyFeedback.match:
         break;
       case EnergyFeedback.lower:
-        adjusted -= 5;
+        adjusted *= 0.9;
         break;
       case EnergyFeedback.muchLower:
-        adjusted -= 10;
+        adjusted *= 0.8;
         break;
     }
     adjusted = adjusted.clamp(0.0, 100.0);
 
-    model.updateWeights(hour, adjusted, user.uid);
+    // Filter events that affect this specific hour
+    final eventsAtHour = current.todayEvents
+        .where((e) => e.applyEffect(hour) != 0.0)
+        .toList();
+
+    model.updateWeights(hour, adjusted, user.uid, eventsAtHour);
     await repo.saveEnergyModel(user.uid, model);
 
     // 3) Reload feedback + recompute curve

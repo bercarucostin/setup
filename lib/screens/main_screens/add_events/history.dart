@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:watt/features/auth/providers/providers.dart';
 import 'package:watt/features/energy/models/event.dart';
 import 'package:watt/features/energy/providers/energy_providers.dart';
 import 'package:watt/features/energy/providers/event_providers.dart';
+import 'package:watt/utils/utils.dart';
 
 class HistoryTabBody extends ConsumerWidget {
   final String userId;
@@ -19,11 +21,20 @@ class HistoryTabBody extends ConsumerWidget {
     required String userId,
     required String eventId,
   }) async {
+    final profile = await ref.read(userProfileStreamProvider(userId).future);
+    if (profile == null) return;
+
+    final wakeHour = profile['wakeHour'] as int?;
+    final bedHour = profile['bedHour'] as int?;
+    if (wakeHour == null || bedHour == null) return;
+
+    final today = dateWokeUp(wakeHour, bedHour);
+
     final repo = ref.read(eventRepositoryProvider);
     await repo.deleteEvent(
       userId: userId,
       eventId: eventId,
-      epochDay: repo.todayEpochDayForDeletes(),
+      epochDay: customDateString(today),
     );
     ref.invalidate(energyInsightsProvider);
   }
@@ -57,13 +68,12 @@ class HistoryTabBody extends ConsumerWidget {
                 itemBuilder: (context, i) {
                   final ev = events[i];
                   final start = (ev.startHour ?? 0).toDouble();
-                  final dur = (ev.duration ?? 0.0);
-                  final end = (start + dur) % 24.0;
+                  final intensity = (ev.intensity ?? 1);
 
                   return _HistoryRow(
                     title: ev.name,
                     start: _hhmm(start),
-                    end: _hhmm(end),
+                    intensity: intensity.toStringAsFixed(1),
                     isBoost: ev.booster == true,
                     onDelete: ev.id == null
                         ? null
@@ -88,7 +98,7 @@ class HistoryTabBody extends ConsumerWidget {
 class _HistoryRow extends StatelessWidget {
   final String title;
   final String start;
-  final String end;
+  final String intensity;
   final bool isBoost;
   final VoidCallback? onDelete;
   final bool isLast;
@@ -96,7 +106,7 @@ class _HistoryRow extends StatelessWidget {
   const _HistoryRow({
     required this.title,
     required this.start,
-    required this.end,
+    required this.intensity,
     required this.isBoost,
     required this.onDelete,
     required this.isLast,
@@ -219,7 +229,7 @@ class _HistoryRow extends StatelessWidget {
                                 size: 18,
                               ),
                             ),
-                            _Chip(text: end),
+                            _Chip(text: intensity),
                           ],
                         ),
                       ],

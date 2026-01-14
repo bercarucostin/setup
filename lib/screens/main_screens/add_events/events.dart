@@ -7,6 +7,7 @@ import 'package:watt/features/energy/models/event.dart';
 import 'package:watt/features/energy/providers/energy_providers.dart';
 import 'package:watt/features/energy/providers/event_providers.dart';
 import 'package:watt/screens/main_screens/add_events/history.dart';
+import 'package:watt/utils/utils.dart';
 
 const double _rCard = 18;
 const double _pad = 10;
@@ -48,11 +49,12 @@ class _AddEventsScreenState extends ConsumerState<AddEventsScreen>
   void _snack(BuildContext context, String msg) =>
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
 
-  Future<_TimeRange?> _pickTimeRange() async {
-    TimeOfDay start = const TimeOfDay(hour: 9, minute: 0);
-    TimeOfDay end = const TimeOfDay(hour: 10, minute: 0);
+  Future<_TimeConfig?> _pickTimeConfig() async {
+    final now = DateTime.now();
+    TimeOfDay startTime = TimeOfDay(hour: now.hour, minute: 0);
+    int intensity = 5; // 1-10 range, default to middle
 
-    return showModalBottomSheet<_TimeRange?>(
+    return showModalBottomSheet<_TimeConfig?>(
       context: context,
       useSafeArea: true,
       isScrollControlled: true,
@@ -81,7 +83,7 @@ class _AddEventsScreenState extends ConsumerState<AddEventsScreen>
                         ),
                         const Spacer(),
                         Text(
-                          'Select Time Range',
+                          'Select Start Time & Intensity',
                           style: Theme.of(context).textTheme.titleMedium,
                         ),
                         const Spacer(),
@@ -90,9 +92,12 @@ class _AddEventsScreenState extends ConsumerState<AddEventsScreen>
                             horizontal: 12,
                             vertical: 6,
                           ),
-                          onPressed: () => Navigator.of(
-                            ctx,
-                          ).pop(_TimeRange(start: start, end: end)),
+                          onPressed: () => Navigator.of(ctx).pop(
+                            _TimeConfig(
+                              startTime: startTime,
+                              intensity: intensity,
+                            ),
+                          ),
                           child: const Text('Done'),
                         ),
                       ],
@@ -100,34 +105,67 @@ class _AddEventsScreenState extends ConsumerState<AddEventsScreen>
                   ),
                   const Divider(height: 1),
                   SizedBox(
-                    height: 260,
-                    child: Row(
+                    height: 150,
+                    child: CupertinoDatePicker(
+                      mode: CupertinoDatePickerMode.time,
+                      initialDateTime: DateTime(
+                        2000,
+                        1,
+                        1,
+                        startTime.hour,
+                        startTime.minute,
+                      ),
+                      use24hFormat: true,
+                      onDateTimeChanged: (DateTime newDateTime) {
+                        setState(() {
+                          startTime = TimeOfDay(
+                            hour: newDateTime.hour,
+                            minute: newDateTime.minute,
+                          );
+                        });
+                      },
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  SizedBox(
+                    height: 120,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Expanded(
-                          child: _CupertinoTimePickerColumn(
-                            label: 'Start',
-                            initial: start,
-                            onChanged: (t) => setState(() => start = t),
-                          ),
+                        Text(
+                          'Intensity: $intensity / 10',
+                          style: Theme.of(context).textTheme.titleMedium,
                         ),
-                        const VerticalDivider(width: 1),
-                        Expanded(
-                          child: _CupertinoTimePickerColumn(
-                            label: 'End',
-                            initial: end,
-                            onChanged: (t) => setState(() => end = t),
+                        const SizedBox(height: 8),
+                        Slider(
+                          value: intensity.toDouble(),
+                          min: 1,
+                          max: 10,
+                          divisions: 9,
+                          label: '$intensity',
+                          onChanged: (val) =>
+                              setState(() => intensity = val.toInt()),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 24),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                '1',
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                              Text(
+                                '10',
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            ],
                           ),
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 16),
-                    child: Text(
-                      'Duration: ${_durationHours(start, end).toStringAsFixed(2)} h',
-                    ),
-                  ),
+                  const SizedBox(height: 16),
                 ],
               );
             },
@@ -138,30 +176,40 @@ class _AddEventsScreenState extends ConsumerState<AddEventsScreen>
   }
 
   Future<void> _onSelectEvent(String uid, Event ev) async {
-    final range = await _pickTimeRange();
-    if (range == null) return;
-
-    final dur = _durationHours(range.start, range.end);
-    if (dur <= 0) {
-      _snack(context, 'End must be after start (use next day if needed).');
-      return;
-    }
+    final config = await _pickTimeConfig();
+    if (config == null) return;
 
     setState(() => _saving = true);
     try {
+      // Fetch user profile to get wake/bed hours for dateWokeUp calculation
+      final profile = await ref.read(userProfileStreamProvider(uid).future);
+      if (profile == null) {
+        _snack(context, 'User profile not found');
+        return;
+      }
+
+      final wakeHour = profile['wakeHour'] as int?;
+      final bedHour = profile['bedHour'] as int?;
+      if (wakeHour == null || bedHour == null) {
+        _snack(context, 'Wake/bed hours not configured');
+        return;
+      }
+
+      final today = dateWokeUp(wakeHour, bedHour);
       final repo = ref.read(eventRepositoryProvider);
 
       await repo.addEventFromTemplate(
         userId: uid,
+        today: today,
         template: ev,
-        startHour: range.start.hour,
-        duration: dur,
+        startHour: config.startTime.hour,
+        intensity: config.intensity.toDouble(),
       );
 
       if (!mounted) return;
       _snack(
         context,
-        '“${ev.name}” added ${_hhmm(range.start)} → ${_hhmm(range.end)}',
+        '"${ev.name}" added at ${_hhmm(config.startTime)} (intensity: ${config.intensity}/10)',
       );
       // No invalidate needed: History uses a stream.
       // ✅ force Insights to recompute
@@ -747,8 +795,8 @@ class _CupertinoSheet extends StatelessWidget {
   }
 }
 
-class _TimeRange {
-  final TimeOfDay start;
-  final TimeOfDay end;
-  const _TimeRange({required this.start, required this.end});
+class _TimeConfig {
+  final TimeOfDay startTime;
+  final int intensity; // 1-10
+  const _TimeConfig({required this.startTime, required this.intensity});
 }

@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:watt/utils/utils.dart';
 
 class FirestoreRepository {
   final FirebaseFirestore _firestore;
@@ -278,7 +279,7 @@ class FirestoreRepository {
         'email': email,
         'displayName': displayName,
         'message': message,
-        'createdAt': FieldValue.serverTimestamp(),
+        'createdAt': nowTimestampString(),
       },
     );
   }

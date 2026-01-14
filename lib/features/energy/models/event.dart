@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 class Event {
   final String? id; // Optional ID for existing events
   int? startHour;
-  double? duration; // number of hours e.g. 1, 1.5, etc.
+  double? intensity; // 1-10 scale
   final String name;
   final String description;
 
@@ -23,7 +23,7 @@ class Event {
   Event({
     this.id,
     this.startHour,
-    this.duration,
+    this.intensity,
     required this.name,
     required this.initialDuration,
     required this.initialEffect,
@@ -40,7 +40,7 @@ class Event {
     return Event(
       id: (data['id'] ?? data['docId']) as String?,
       startHour: data['startHour'] ?? 0,
-      duration: data['duration'] ?? 1.0,
+      intensity: data['intensity'] ?? 1.0,
       name: data['name'],
       initialDuration: data['initialDuration'].toInt(),
       initialEffect: data['initialEffect'].toDouble(),
@@ -50,17 +50,16 @@ class Event {
       tailDecay: data['tailDecay'].toDouble(),
       booster: data['booster'] ?? false,
       description: data['description'] ?? '',
-      icon:
-          (data['icon'] is Map<String, dynamic>)
-              ? IconSpec.fromFirestore(data['icon'] as Map<String, dynamic>)
-              : null,
+      icon: (data['icon'] is Map<String, dynamic>)
+          ? IconSpec.fromFirestore(data['icon'] as Map<String, dynamic>)
+          : null,
     );
   }
 
   Map<String, dynamic> toFirestore() {
     return {
       'startHour': startHour,
-      'duration': duration,
+      'intensity': intensity,
       'name': name,
       'initialDuration': initialDuration,
       'initialEffect': initialEffect,
@@ -76,7 +75,7 @@ class Event {
 
   double get _scale {
     // Scale factor to convert hours to the 0-23 range
-    return duration!;
+    return intensity!;
   }
 
   double get _mainEffectDuration => initialDuration * _scale;
@@ -89,13 +88,13 @@ class Event {
   double applyEffect(int hour) {
     // hours since start, wrapped forward
     final int t = (hour - startHour!) % 24; // 0..23
-    // length of the interval start->end, wrapped forward
-    final double window =
-        (_mainEffectDuration + _tailEffectDuration) % 24; // 0..23
+    // length of the interval start->end
+    final double totalDuration = _mainEffectDuration + _tailEffectDuration;
 
-    // Half-open interval: [start, end)
-    if (window == 0) return 0.0; // degenerate: empty interval
-    if (t >= window) return 0.0; // outside interval
+    // No effect if zero duration
+    if (totalDuration <= 0) return 0.0;
+    // If duration >= 24h, effect applies to all hours; otherwise check bounds
+    if (totalDuration < 24 && t >= totalDuration) return 0.0;
 
     if (t <= _mainEffectDuration) {
       return _mainEffect * exp(-_mainDecay * t);

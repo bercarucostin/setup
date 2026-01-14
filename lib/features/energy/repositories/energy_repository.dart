@@ -1,22 +1,20 @@
+import 'package:watt/features/auth/providers/providers.dart';
 import 'package:watt/features/energy/models/energy_feedback.dart';
 import 'package:watt/features/energy/models/energy_model.dart';
 import 'package:watt/features/energy/models/energy_point.dart';
 import 'package:watt/features/energy/models/event.dart';
 import 'package:watt/features/firestore/repository/firestore.dart';
+import 'package:watt/utils/utils.dart';
 
 class EnergyRepository {
   final FirestoreRepository _firestoreRepo;
   EnergyRepository(this._firestoreRepo);
-
-  int _epochDay(DateTime dt) =>
-      DateTime(dt.year, dt.month, dt.day).millisecondsSinceEpoch ~/ 86400000;
 
   // -------------------- MODEL --------------------
 
   Future<EnergyModel> loadOrDefaultModel({
     required String userId,
     required Map<String, dynamic> profile,
-    required String chronotype,
   }) async {
     final energyDoc = await _firestoreRepo.getDataFromSubcollection(
       parentCollectionPath: 'users',
@@ -25,28 +23,28 @@ class EnergyRepository {
       subDocId: 'default',
     );
 
-    print("""Loading energy model for userId=$userId "
-        "chronotype=$chronotype energyDoc.exists=${energyDoc.exists}""");
+    print(
+      """Loading energy model for userId=$userId "
+        "chronotype=${profile['chronotype']} energyDoc.exists=${energyDoc.exists}""",
+    );
 
     if (energyDoc.exists && energyDoc.data() != null) {
       return EnergyModel.fromFirestore(profile, energyDoc.data()!);
     }
 
-    print(energyDoc.data());
-
     final defaultDoc = await _firestoreRepo.getData(
       collectionPath: 'energyModelDefaults',
-      docId: chronotype,
+      docId: profile['chronotype'],
     );
 
     print(
-      'Loaded default energy model for chronotype=$chronotype exists=${defaultDoc.exists}',
+      'Loaded default energy model for chronotype=${profile['chronotype']} exists=${defaultDoc.exists}',
     );
 
     final data = defaultDoc.data();
     if (data == null) {
       throw StateError(
-        'Missing energyModelDefaults doc for chronotype=$chronotype',
+        'Missing energyModelDefaults doc for chronotype=${profile['chronotype']}',
       );
     }
 
@@ -79,16 +77,26 @@ class EnergyRepository {
     );
   }
 
-  // -------------------- EVENTS (today) --------------------
+  // -------------------- Today's Events - One Time --------------------
 
   Future<List<Event>> fetchUserEventsForToday(String userId) async {
-    final todayEpoch = _epochDay(DateTime.now()).toString();
+    final profileDoc = await _firestoreRepo.getData(
+      collectionPath: 'users',
+      docId: userId,
+    );
+
+    final profile = profileDoc.data();
+    if (profile == null) {
+      throw StateError('User profile not found for userId=$userId');
+    }
+
+    final today = dateWokeUp(profile['wakeHour'], profile['bedHour']);
 
     final snap = await _firestoreRepo.getEntireSubSubcollection(
       parentCollectionPath: 'users',
       parentDocId: userId,
       subcollectionPath: 'eventDays',
-      subDocId: todayEpoch,
+      subDocId: customDateString(today),
       subSubcollectionPath: 'events',
     );
 
@@ -126,7 +134,13 @@ class EnergyRepository {
 
     // last point at bedtime (lastHour = true)
     pts.add(EnergyPoint(end, model.predict(end, false, true, events)));
-
+    print("Energy points:");
+    for (final point in pts) {
+      print(
+        '  ${point.hour.toString().padLeft(2, '0')}:00 → '
+        '${point.energy.toStringAsFixed(2)} (${_energyLabel(point.energy)})',
+      );
+    }
     return pts;
   }
 
@@ -136,23 +150,33 @@ class EnergyRepository {
     required String userId,
     required EnergyFeedbackRecord record,
   }) async {
-    final String todayEpoch = _epochDay(DateTime.now()).toString();
+    final profileDoc = await _firestoreRepo.getData(
+      collectionPath: 'users',
+      docId: userId,
+    );
+
+    final profile = profileDoc.data();
+    if (profile == null) {
+      throw StateError('User profile not found for userId=$userId');
+    }
+
+    final today = dateWokeUp(profile['wakeHour'], profile['bedHour']);
 
     await _firestoreRepo.saveDataInSubcollection(
       parentCollectionPath: 'users',
       parentDocId: userId,
       subcollectionPath: 'energyFeedbackDays',
-      subDocId: todayEpoch,
+      subDocId: customDateString(today),
       data: {
-        'day': todayEpoch,
-        'lastUpdated': DateTime.now().toIso8601String(),
+        'day': customDateString(today),
+        'lastUpdated': nowTimestampString(),
       },
       merge: true,
     );
 
     await _firestoreRepo.saveDataInSubcollection(
       parentCollectionPath: 'users/$userId/energyFeedbackDays',
-      parentDocId: todayEpoch,
+      parentDocId: customDateString(today),
       subcollectionPath: 'feedback',
       subDocId: record.hour.toString(),
       data: record.toFirestore(),
@@ -163,13 +187,23 @@ class EnergyRepository {
   Future<Map<int, EnergyFeedbackRecord>> fetchUserEnergyFeedbackForToday(
     String userId,
   ) async {
-    final String todayEpoch = _epochDay(DateTime.now()).toString();
+    final profileDoc = await _firestoreRepo.getData(
+      collectionPath: 'users',
+      docId: userId,
+    );
+
+    final profile = profileDoc.data();
+    if (profile == null) {
+      throw StateError('User profile not found for userId=$userId');
+    }
+
+    final today = dateWokeUp(profile['wakeHour'], profile['bedHour']);
 
     final snap = await _firestoreRepo.getEntireSubSubcollection(
       parentCollectionPath: 'users',
       parentDocId: userId,
       subcollectionPath: 'energyFeedbackDays',
-      subDocId: todayEpoch,
+      subDocId: customDateString(today),
       subSubcollectionPath: 'feedback',
     );
 
@@ -186,5 +220,13 @@ class EnergyRepository {
     }
 
     return result;
+  }
+
+  String _energyLabel(double energy) {
+    if (energy > 80) return 'Peak power';
+    if (energy > 60) return 'In the zone';
+    if (energy > 40) return 'Cruising';
+    if (energy > 20) return 'Warming Up';
+    return 'Running on fumes';
   }
 }

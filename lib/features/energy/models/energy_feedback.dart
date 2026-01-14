@@ -1,3 +1,5 @@
+import 'package:watt/utils/utils.dart';
+
 enum EnergyFeedback { muchHigher, higher, match, lower, muchLower }
 
 String feedbackToString(EnergyFeedback fb) {
@@ -35,11 +37,25 @@ EnergyFeedback stringToFeedback(String raw) {
 class EnergyFeedbackRecord {
   final int hour; // 0..23
   final EnergyFeedback feedback;
+  double wS;
+  double wC;
+  num circadianPeakHour;
+  int hoursSlept;
+  double sPrev;
+  int wakeHour;
+  int bedHour;
   final double? predictedEnergy;
 
   EnergyFeedbackRecord({
     required this.hour,
     required this.feedback,
+    required this.wS,
+    required this.wC,
+    required this.circadianPeakHour,
+    required this.hoursSlept,
+    required this.sPrev,
+    required this.wakeHour,
+    required this.bedHour,
     this.predictedEnergy,
   });
 
@@ -47,19 +63,32 @@ class EnergyFeedbackRecord {
     return {
       'hour': hour,
       'feedback': feedbackToString(feedback),
+      'wS': wS,
+      'wC': wC,
+      'circadianPeakHour': circadianPeakHour,
+      'hoursSlept': hoursSlept,
+      'sPrev': sPrev,
+      'wakeHour': wakeHour,
+      'bedHour': bedHour,
       if (predictedEnergy != null) 'predictedEnergy': predictedEnergy,
-      'ts': DateTime.now().toIso8601String(),
+      'createdAt': nowTimestampString(),
     };
   }
 
   factory EnergyFeedbackRecord.fromFirestore(Map<String, dynamic> data) {
     final rawHour = data['hour'];
     final hour = rawHour is int ? rawHour : int.tryParse('$rawHour') ?? 0;
-
     return EnergyFeedbackRecord(
-      hour: hour.clamp(0, 23),
-      feedback: stringToFeedback((data['feedback'] ?? 'match') as String),
-      predictedEnergy: (data['predictedEnergy'] as num?)?.toDouble(),
+      hour: hour,
+      feedback: stringToFeedback(data['feedback'] as String),
+      wS: data['wS'] as double,
+      wC: data['wC'] as double,
+      circadianPeakHour: data['circadianPeakHour'] as num,
+      hoursSlept: data['hoursSlept'] as int,
+      sPrev: data['sPrev'] as double,
+      wakeHour: data['wakeHour'] as int,
+      bedHour: data['bedHour'] as int,
+      predictedEnergy: data['predictedEnergy'] as double?,
     );
   }
 }
