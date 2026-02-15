@@ -6,18 +6,29 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:watt/features/auth/providers/providers.dart';
 
 import 'package:watt/features/energy/models/energy_feedback.dart';
+import 'package:watt/features/energy/models/sleep_quality.dart';
 import 'package:watt/features/energy/providers/energy_providers.dart';
 
-// Widgets:
 import 'package:watt/features/energy/widgets/compact_view_tiles.dart';
-import 'package:intl/intl.dart';
 import 'package:watt/features/energy/widgets/tilesv2.dart';
 import 'package:watt/features/firestore/providers/providers.dart';
 import 'package:watt/utils/utils.dart';
 
 enum InsightsView { detailed, compact }
 
-enum SleepQuality { poor, okay, great }
+/// 5-step sleep quality scale (history-friendly; stored as strings)
+
+final sleepQualityDayProvider = StreamProvider.family
+    .autoDispose<Map<String, dynamic>?, ({String uid, String epochDay})>((
+      ref,
+      args,
+    ) {
+      final repo = ref.read(firestoreRepositoryProvider);
+      return repo.watchDocument(
+        collectionPath: 'users/${args.uid}/sleepQualityDays',
+        docId: args.epochDay,
+      );
+    });
 
 class InsightsScreen extends ConsumerStatefulWidget {
   const InsightsScreen({super.key});
@@ -37,64 +48,50 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
   Future<void> _handleSleepSelected(SleepQuality q) async {
     if (_sleepSubmitting) return;
 
-    final prev = _sleepQuality;
+    setState(() {
+      _sleepSubmitting = true;
 
-    setState(() => _sleepSubmitting = true);
+      _sleepExpanded = false;
+
+      _sleepQuality = q;
+    });
 
     try {
-      // Persist to user doc (merge: true), same pattern as chronotype.
       final user = ref.read(firebaseAuthProvider).currentUser;
       if (user == null) return;
 
       final today = await _todayByWakeBed(user.uid);
-      if (today == null) {
-        // silent: wake/bed not configured (or profile missing)
-        // (optional fallback if you prefer)
-        // final fallbackDate = customDateString(DateTime.now());
-        return;
-      }
+      if (today == null) return;
 
-      final localDate = customDateString(today);
+      final epochDay = customDateString(today); // yyyy-MM-dd
 
-      await _mergeSleepCheckInData({
-        'sleepQuality': q.name, // "poor" | "okay" | "great"
-        'sleepQualityLocalDate': localDate,
-        'sleepQualityUpdatedAt': FieldValue.serverTimestamp(),
-      });
+      await ref
+          .read(firestoreRepositoryProvider)
+          .saveDataInSubcollection(
+            parentCollectionPath: 'users',
+            parentDocId: user.uid,
+            subcollectionPath: 'sleepQualityDays',
+            subDocId: epochDay, // 1 doc per day
+            merge: true,
+            data: {
+              'epochDay': epochDay,
+              'sleepQuality': sleepQualityToString(q),
+              'updatedAt': FieldValue.serverTimestamp(),
+            },
+          );
 
-      // Commit UI state only after persistence succeeded
-      if (!mounted) return;
-      setState(() {
-        _sleepQuality = q;
-        _sleepExpanded = false;
-      });
-
-      // Refresh insights if they depend on this
       ref.invalidate(energyInsightsProvider);
     } catch (e) {
-      if (!mounted) return;
-
-      // revert selection if you had any local optimistic state
-      setState(() => _sleepQuality = prev);
-
-      // Keep expanded so user can retry
+      // If you want: reopen on failure
+      if (mounted) {
+        setState(() {
+          _sleepExpanded = true; // let them retry
+          // optional: also revert _sleepQuality if you want pessimistic UI
+        });
+      }
     } finally {
       if (mounted) setState(() => _sleepSubmitting = false);
     }
-  }
-
-  Future<void> _mergeSleepCheckInData(Map<String, dynamic> data) async {
-    final user = ref.read(firebaseAuthProvider).currentUser;
-    if (user == null) return;
-
-    await ref
-        .read(firestoreRepositoryProvider)
-        .saveData(
-          collectionPath: 'users',
-          docId: user.uid,
-          data: data,
-          merge: true,
-        );
   }
 
   Future<DateTime?> _todayByWakeBed(String uid) async {
@@ -116,20 +113,32 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
     final controller = ref.read(energyInsightsProvider.notifier);
     final user = ref.watch(firebaseAuthProvider).currentUser;
 
+    DateTime? today;
+    String? epochDay;
+
     if (user != null) {
+      // you already have _todayByWakeBed
+      // but it's async — so we use profile stream synchronously to get wake/bed
       final profileAsync = ref.watch(userProfileStreamProvider(user.uid));
-
       profileAsync.whenData((profile) {
-        final s = profile?['sleepQuality'] as String?;
-        final parsed = switch (s) {
-          'poor' => SleepQuality.poor,
-          'okay' => SleepQuality.okay,
-          'great' => SleepQuality.great,
-          _ => null,
-        };
+        final wakeHour = profile?['wakeHour'] as int?;
+        final bedHour = profile?['bedHour'] as int?;
+        if (wakeHour != null && bedHour != null) {
+          today = dateWokeUp(wakeHour, bedHour);
+          epochDay = customDateString(today!);
+        }
+      });
+    }
+    if (user != null && epochDay != null) {
+      final dayAsync = ref.watch(
+        sleepQualityDayProvider((uid: user.uid, epochDay: epochDay!)),
+      );
 
-        // Avoid setState loops: only set when it changes and when local is null
-        if (_sleepQuality == null && parsed != null && mounted) {
+      dayAsync.whenData((day) {
+        final raw = day?['sleepQuality'] as String?;
+        final parsed = raw == null ? null : stringToSleepQuality(raw);
+
+        if (mounted && parsed != null && _sleepQuality != parsed) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (!mounted) return;
             setState(() => _sleepQuality = parsed);
@@ -367,8 +376,6 @@ class _IconToggle extends StatelessWidget {
   }
 }
 
-/// ---- New colorful card (Option C: neutral card, semantic pills) ----
-// ---- Sleep card (dark, "LAST NIGHT'S SLEEP" style) ----
 class _SleepQualityCard extends StatelessWidget {
   final SleepQuality? selected;
   final bool submitting;
@@ -386,10 +393,14 @@ class _SleepQualityCard extends StatelessWidget {
 
   String _label(SleepQuality q) {
     switch (q) {
+      case SleepQuality.veryPoor:
+        return "Very poor";
       case SleepQuality.poor:
         return "Poor";
       case SleepQuality.okay:
         return "Okay";
+      case SleepQuality.good:
+        return "Good";
       case SleepQuality.great:
         return "Great";
     }
@@ -397,10 +408,14 @@ class _SleepQualityCard extends StatelessWidget {
 
   String _emoji(SleepQuality q) {
     switch (q) {
+      case SleepQuality.veryPoor:
+        return "🥱";
       case SleepQuality.poor:
         return "😴";
       case SleepQuality.okay:
         return "😐";
+      case SleepQuality.good:
+        return "🙂";
       case SleepQuality.great:
         return "😊";
     }
@@ -408,12 +423,12 @@ class _SleepQualityCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Palette tuned to resemble your screenshot
     const bgTop = Color(0xFF151A2D);
     const bgBottom = Color(0xFF0E1223);
 
     const border = Color(0xFF2D3556);
-    const glow = Color(0xFF6E56FF); // subtle purple glow
+    const glow = Color(0xFF6E56FF);
+
     const textMain = Color(0xFFE8EAF3);
     const textMuted = Color(0xFF9AA3BF);
 
@@ -431,13 +446,11 @@ class _SleepQualityCard extends StatelessWidget {
           colors: [bgTop, bgBottom],
         ),
         boxShadow: [
-          // soft lift
           BoxShadow(
             color: Colors.black.withOpacity(0.35),
             blurRadius: 22,
             offset: const Offset(0, 12),
           ),
-          // purple glow
           BoxShadow(
             color: glow.withOpacity(0.22),
             blurRadius: 26,
@@ -449,7 +462,7 @@ class _SleepQualityCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         child: Stack(
           children: [
-            // subtle inner highlight wash
+            // Inner wash
             Positioned.fill(
               child: IgnorePointer(
                 child: DecoratedBox(
@@ -468,7 +481,7 @@ class _SleepQualityCard extends StatelessWidget {
               ),
             ),
 
-            // bottom "glow line" like the screenshot
+            // Bottom glow line
             Positioned(
               left: 10,
               right: 10,
@@ -491,112 +504,83 @@ class _SleepQualityCard extends StatelessWidget {
             ),
 
             Padding(
-              padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
               child: Column(
                 children: [
+                  // Header row
                   InkWell(
                     onTap: submitting ? null : onToggle,
                     borderRadius: BorderRadius.circular(14),
                     child: Row(
                       children: [
-                        const _MoonChip(), // now smaller (see below)
+                        const _MoonChipSmall(),
                         const SizedBox(width: 12),
-
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
+                              const Text(
                                 "LAST NIGHT'S SLEEP",
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontFamily: 'Montserrat',
                                   fontWeight: FontWeight.w700,
-                                  fontSize: 14, // smaller
+                                  fontSize: 13.5,
                                   letterSpacing: 0.7,
-                                  color: Color(0xFFE8EAF3),
+                                  color: textMain,
                                 ),
                               ),
                               const SizedBox(height: 3),
                               Text(
-                                selected == null
-                                    ? "How did you sleep?"
-                                    : "You rated: ${_label(selected!)} ${_emoji(selected!)}",
+                                subtitle,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
                                   fontFamily: 'Montserrat',
                                   fontWeight: FontWeight.w500,
-                                  fontSize: 12.2, // smaller
-                                  color: const Color(
-                                    0xFF9AA3BF,
-                                  ).withOpacity(0.95),
+                                  fontSize: 12.0,
+                                  color: textMuted.withOpacity(0.95),
                                 ),
                               ),
                             ],
                           ),
                         ),
-
                         const SizedBox(width: 8),
-
-                        // ✅ only chevron now
                         AnimatedRotation(
                           turns: expanded ? 0.5 : 0.0,
                           duration: const Duration(milliseconds: 180),
                           curve: Curves.easeOutCubic,
                           child: Icon(
                             Icons.keyboard_arrow_down_rounded,
-                            size: 20, // smaller
-                            color: const Color(0xFF9AA3BF).withOpacity(0.95),
+                            size: 20,
+                            color: textMuted.withOpacity(0.95),
                           ),
                         ),
                       ],
                     ),
                   ),
 
-                  // Expand area
+                  // Dropdown
                   AnimatedCrossFade(
                     firstChild: const SizedBox.shrink(),
                     secondChild: Padding(
-                      padding: const EdgeInsets.only(top: 12),
+                      padding: const EdgeInsets.only(top: 10),
                       child: Column(
                         children: [
                           AbsorbPointer(
                             absorbing: submitting,
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: _DarkChoicePill(
-                                    emoji: "😴",
-                                    label: "Poor",
-                                    selected: selected == SleepQuality.poor,
-                                    onTap: () => onSelected(SleepQuality.poor),
-                                  ),
-                                ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: _DarkChoicePill(
-                                    emoji: "😐",
-                                    label: "Okay",
-                                    selected: selected == SleepQuality.okay,
-                                    onTap: () => onSelected(SleepQuality.okay),
-                                  ),
-                                ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: _DarkChoicePill(
-                                    emoji: "😊",
-                                    label: "Great",
-                                    selected: selected == SleepQuality.great,
-                                    onTap: () => onSelected(SleepQuality.great),
-                                  ),
-                                ),
-                              ],
+                            child: _DarkDropdownMenu(
+                              selected: selected,
+                              onPick: (q) async {
+                                await onSelected(q);
+                              },
+                              label: _label,
+                              emoji: _emoji,
                             ),
                           ),
                           if (submitting) ...[
-                            const SizedBox(height: 12),
+                            const SizedBox(height: 10),
                             ClipRRect(
                               borderRadius: BorderRadius.circular(999),
                               child: LinearProgressIndicator(
@@ -627,55 +611,96 @@ class _SleepQualityCard extends StatelessWidget {
   }
 }
 
-class _MoonChip extends StatelessWidget {
-  const _MoonChip();
+class _MoonChipSmall extends StatelessWidget {
+  const _MoonChipSmall();
 
   @override
   Widget build(BuildContext context) {
+    const border = Color(0xFF2D3556);
     const glow = Color(0xFF6E56FF);
+    const textMain = Color(0xFFE8EAF3);
 
     return Container(
-      height: 40, // smaller
-      width: 40, // smaller
+      height: 30,
+      width: 30,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            glow.withOpacity(0.32),
-            const Color(0xFF2B2F55).withOpacity(0.68),
-          ],
-        ),
-        border: Border.all(color: glow.withOpacity(0.20)),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: border.withOpacity(0.85), width: 1),
+        color: Colors.white.withOpacity(0.04),
         boxShadow: [
           BoxShadow(
-            color: glow.withOpacity(0.16),
-            blurRadius: 14,
-            offset: const Offset(0, 8),
+            color: glow.withOpacity(0.12),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
-      child: Center(
-        child: Icon(
-          Icons.nightlight_round,
-          size: 18, // smaller
-          color: Colors.white.withOpacity(0.88),
-        ),
+      alignment: Alignment.center,
+      child: Icon(
+        Icons.nightlight_round,
+        size: 16,
+        color: textMain.withOpacity(0.9),
       ),
     );
   }
 }
 
-class _DarkChoicePill extends StatelessWidget {
+/// Compact dropdown menu surface with 5 items (no big pills)
+class _DarkDropdownMenu extends StatelessWidget {
+  final SleepQuality? selected;
+  final Future<void> Function(SleepQuality) onPick;
+  final String Function(SleepQuality) label;
+  final String Function(SleepQuality) emoji;
+
+  const _DarkDropdownMenu({
+    required this.selected,
+    required this.onPick,
+    required this.label,
+    required this.emoji,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    const border = Color(0xFF2D3556);
+    const glow = Color(0xFF6E56FF);
+    const textMain = Color(0xFFE8EAF3);
+    const textMuted = Color(0xFF9AA3BF);
+
+    final items = SleepQuality.values;
+
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: border.withOpacity(0.85), width: 1),
+        color: Colors.white.withOpacity(0.035),
+      ),
+      child: Column(
+        children: [
+          for (int i = 0; i < items.length; i++) ...[
+            _DarkDropdownItem(
+              emoji: emoji(items[i]),
+              text: label(items[i]),
+              selected: selected == items[i],
+              onTap: () => onPick(items[i]),
+            ),
+            if (i != items.length - 1)
+              Divider(height: 1, thickness: 1, color: border.withOpacity(0.55)),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _DarkDropdownItem extends StatelessWidget {
   final String emoji;
-  final String label;
+  final String text;
   final bool selected;
   final VoidCallback onTap;
 
-  const _DarkChoicePill({
+  const _DarkDropdownItem({
     required this.emoji,
-    required this.label,
+    required this.text,
     required this.selected,
     required this.onTap,
   });
@@ -683,62 +708,44 @@ class _DarkChoicePill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const glow = Color(0xFF6E56FF);
-    const border = Color(0xFF2D3556);
+    const textMain = Color(0xFFE8EAF3);
+    const textMuted = Color(0xFF9AA3BF);
 
-    final bg = selected
-        ? glow.withOpacity(0.18)
-        : Colors.white.withOpacity(0.04);
+    final bg = selected ? glow.withOpacity(0.14) : Colors.transparent;
+    final fg = selected
+        ? textMain.withOpacity(0.95)
+        : textMuted.withOpacity(0.95);
 
-    final outline = selected
-        ? glow.withOpacity(0.40)
-        : border.withOpacity(0.75);
-
-    return SizedBox(
-      height: 40,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(14),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 160),
-            curve: Curves.easeOutCubic,
-            padding: const EdgeInsets.symmetric(horizontal: 10),
-            decoration: BoxDecoration(
-              color: bg,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: outline, width: 1),
-            ),
-            child: Center(
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(emoji, style: const TextStyle(fontSize: 15)),
-                  const SizedBox(width: 7),
-                  Flexible(
-                    child: Text(
-                      label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontFamily: 'Montserrat',
-                        fontWeight: FontWeight.w700,
-                        fontSize: 12.5,
-                        color: Colors.white.withOpacity(0.88),
-                      ),
-                    ),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Ink(
+          color: bg,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          child: Row(
+            children: [
+              Text(emoji, style: const TextStyle(fontSize: 15)),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  text,
+                  style: TextStyle(
+                    fontFamily: 'Montserrat',
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12.5,
+                    color: fg,
                   ),
-                  if (selected) ...[
-                    const SizedBox(width: 6),
-                    Icon(
-                      Icons.check_rounded,
-                      size: 16,
-                      color: Colors.white.withOpacity(0.88),
-                    ),
-                  ],
-                ],
+                ),
               ),
-            ),
+              if (selected)
+                Icon(
+                  Icons.check_rounded,
+                  size: 18,
+                  color: textMain.withOpacity(0.92),
+                ),
+            ],
           ),
         ),
       ),
