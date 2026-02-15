@@ -1,4 +1,4 @@
-name: watt
+name: Watt
 description: "Align work and energy for higher productivity."
 publish_to: 'none'
 version: 0.1.0
@@ -36,6 +36,9 @@ flutter_launcher_icons:
   ios: true
   image_path: "assets/icons/app_icon2.png"
   remove_alpha_ios: true
+  adaptive_icon_background: "#1E3A8A"
+  adaptive_icon_foreground: "assets/icons/app_icon2.png"
+  adaptive_icon_round: "assets/icons/app_icon2.png"
 
 flutter:
   uses-material-design: true
