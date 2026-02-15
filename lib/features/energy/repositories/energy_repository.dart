@@ -23,11 +23,6 @@ class EnergyRepository {
       subDocId: 'default',
     );
 
-    print(
-      """Loading energy model for userId=$userId "
-        "chronotype=${profile['chronotype']} energyDoc.exists=${energyDoc.exists}""",
-    );
-
     if (energyDoc.exists && energyDoc.data() != null) {
       return EnergyModel.fromFirestore(profile, energyDoc.data()!);
     }
@@ -37,18 +32,12 @@ class EnergyRepository {
       docId: profile['chronotype'],
     );
 
-    print(
-      'Loaded default energy model for chronotype=${profile['chronotype']} exists=${defaultDoc.exists}',
-    );
-
     final data = defaultDoc.data();
     if (data == null) {
       throw StateError(
         'Missing energyModelDefaults doc for chronotype=${profile['chronotype']}',
       );
     }
-
-    print(data['circadianPeak']);
 
     final model = EnergyModel.fromFirestore(profile, data);
 
@@ -144,13 +133,7 @@ class EnergyRepository {
     pts.add(
       EnergyPoint(end, model.predict(end, false, true, events, sleepQuality)),
     );
-    print("Energy points:");
-    for (final point in pts) {
-      print(
-        '  ${point.hour.toString().padLeft(2, '0')}:00 → '
-        '${point.energy.toStringAsFixed(2)} (${_energyLabel(point.energy)})',
-      );
-    }
+
     return pts;
   }
 

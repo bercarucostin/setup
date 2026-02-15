@@ -445,8 +445,6 @@ class _ProfileTabBodyState extends ConsumerState<ProfileTabBody> {
 
     if (submitted == null) return;
 
-    debugPrint('FEEDBACK_SUBMITTED: $submitted');
-
     try {
       final user = ref.read(firebaseAuthProvider).currentUser;
       if (user == null) return;
