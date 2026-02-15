@@ -1,4 +1,4 @@
-import 'package:watt/utils/utils.dart';
+import 'package:Watt/utils/utils.dart';
 
 enum SleepQuality { veryPoor, poor, okay, good, great }
 

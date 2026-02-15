@@ -4,16 +4,16 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import 'package:watt/features/auth/models/auth_state.dart';
-import 'package:watt/features/auth/providers/auth_controller_provider.dart';
-import 'package:watt/features/auth/providers/providers.dart';
+import 'package:Watt/features/auth/models/auth_state.dart';
+import 'package:Watt/features/auth/providers/auth_controller_provider.dart';
+import 'package:Watt/features/auth/providers/providers.dart';
 
-import 'package:watt/screens/auth/sign_in.dart';
-import 'package:watt/screens/auth/sign_up.dart';
-import 'package:watt/screens/checking_screen.dart';
-import 'package:watt/screens/home_screen.dart';
+import 'package:Watt/screens/auth/sign_in.dart';
+import 'package:Watt/screens/auth/sign_up.dart';
+import 'package:Watt/screens/checking_screen.dart';
+import 'package:Watt/screens/home_screen.dart';
 
-import 'package:watt/screens/profile_configuration/onboarding_flow_screen.dart';
+import 'package:Watt/screens/profile_configuration/onboarding_flow_screen.dart';
 
 /// Minimal Listenable (NOT ChangeNotifier) for go_router refreshListenable.
 class RouterRefreshListenable implements Listenable {

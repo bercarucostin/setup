@@ -1,9 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-import 'package:watt/features/auth/models/auth_state.dart';
-import 'package:watt/features/auth/providers/providers.dart';
-import 'package:watt/features/firestore/providers/providers.dart';
+import 'package:Watt/features/auth/models/auth_state.dart';
+import 'package:Watt/features/auth/providers/providers.dart';
+import 'package:Watt/features/firestore/providers/providers.dart';
 
 class AuthController extends Notifier<AuthState> {
   @override

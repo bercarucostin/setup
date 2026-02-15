@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:watt/features/energy/models/event.dart';
-import 'package:watt/features/firestore/repository/firestore.dart';
-import 'package:watt/utils/utils.dart';
+import 'package:Watt/features/energy/models/event.dart';
+import 'package:Watt/features/firestore/repository/firestore.dart';
+import 'package:Watt/utils/utils.dart';
 
 class EventRepository {
   EventRepository(this._firestoreRepo, {FirebaseFirestore? firestore})

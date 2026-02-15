@@ -5,7 +5,7 @@
 
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:watt/features/energy/models/energy_point.dart';
+import 'package:Watt/features/energy/models/energy_point.dart';
 
 class CompactInsightsGrid extends StatefulWidget {
   final List<EnergyPoint> points;

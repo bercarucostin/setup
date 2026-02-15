@@ -2,8 +2,8 @@ import 'dart:ui' show FontFeature;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:watt/features/energy/models/energy_feedback.dart';
-import 'package:watt/features/energy/models/energy_point.dart';
+import 'package:Watt/features/energy/models/energy_feedback.dart';
+import 'package:Watt/features/energy/models/energy_point.dart';
 
 // -----------------------------------------------------------------------------
 // Existing helpers you already have (kept)

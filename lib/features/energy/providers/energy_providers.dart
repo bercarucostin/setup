@@ -1,17 +1,17 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:watt/features/auth/providers/providers.dart'
+import 'package:Watt/features/auth/providers/providers.dart'
     show authStateProvider, userProfileStreamProvider;
-import 'package:watt/features/energy/models/sleep_quality.dart';
-import 'package:watt/features/energy/repositories/energy_repository.dart';
+import 'package:Watt/features/energy/models/sleep_quality.dart';
+import 'package:Watt/features/energy/repositories/energy_repository.dart';
 
-import 'package:watt/features/firestore/providers/providers.dart'
+import 'package:Watt/features/firestore/providers/providers.dart'
     show firestoreRepositoryProvider;
 
-import 'package:watt/features/energy/models/energy_feedback.dart';
-import 'package:watt/features/energy/models/energy_model.dart';
-import 'package:watt/features/energy/models/energy_point.dart';
-import 'package:watt/features/energy/models/event.dart';
+import 'package:Watt/features/energy/models/energy_feedback.dart';
+import 'package:Watt/features/energy/models/energy_model.dart';
+import 'package:Watt/features/energy/models/energy_point.dart';
+import 'package:Watt/features/energy/models/event.dart';
 
 /// Repository wiring
 final energyRepositoryProvider = Provider<EnergyRepository>((ref) {

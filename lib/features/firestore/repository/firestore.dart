@@ -1,5 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:watt/utils/utils.dart';
+import 'package:Watt/utils/utils.dart';
 
 class FirestoreRepository {
   final FirebaseFirestore _firestore;

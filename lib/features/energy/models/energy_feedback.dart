@@ -1,4 +1,4 @@
-import 'package:watt/utils/utils.dart';
+import 'package:Watt/utils/utils.dart';
 
 enum EnergyFeedback { muchHigher, higher, match, lower, muchLower }
 

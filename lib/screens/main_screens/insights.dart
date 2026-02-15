@@ -1,18 +1,16 @@
 // lib/features/energy/screens/insights_screen.dart
+import 'package:Watt/features/auth/providers/providers.dart';
+import 'package:Watt/features/energy/models/energy_feedback.dart';
+import 'package:Watt/features/energy/models/sleep_quality.dart';
+import 'package:Watt/features/energy/providers/energy_providers.dart';
+import 'package:Watt/features/energy/widgets/compact_view_tiles.dart';
+import 'package:Watt/features/energy/widgets/tilesv2.dart';
+import 'package:Watt/features/firestore/providers/providers.dart';
+import 'package:Watt/utils/utils.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:watt/features/auth/providers/providers.dart';
-
-import 'package:watt/features/energy/models/energy_feedback.dart';
-import 'package:watt/features/energy/models/sleep_quality.dart';
-import 'package:watt/features/energy/providers/energy_providers.dart';
-
-import 'package:watt/features/energy/widgets/compact_view_tiles.dart';
-import 'package:watt/features/energy/widgets/tilesv2.dart';
-import 'package:watt/features/firestore/providers/providers.dart';
-import 'package:watt/utils/utils.dart';
 
 enum InsightsView { detailed, compact }
 

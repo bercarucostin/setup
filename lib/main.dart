@@ -1,8 +1,8 @@
+import 'package:Watt/app.dart';
+import 'package:Watt/firebase_options.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:watt/app.dart';
-import 'package:watt/firebase_options.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();

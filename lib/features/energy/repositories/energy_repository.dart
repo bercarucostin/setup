@@ -1,10 +1,10 @@
-import 'package:watt/features/energy/models/energy_feedback.dart';
-import 'package:watt/features/energy/models/energy_model.dart';
-import 'package:watt/features/energy/models/energy_point.dart';
-import 'package:watt/features/energy/models/event.dart';
-import 'package:watt/features/energy/models/sleep_quality.dart';
-import 'package:watt/features/firestore/repository/firestore.dart';
-import 'package:watt/utils/utils.dart';
+import 'package:Watt/features/energy/models/energy_feedback.dart';
+import 'package:Watt/features/energy/models/energy_model.dart';
+import 'package:Watt/features/energy/models/energy_point.dart';
+import 'package:Watt/features/energy/models/event.dart';
+import 'package:Watt/features/energy/models/sleep_quality.dart';
+import 'package:Watt/features/firestore/repository/firestore.dart';
+import 'package:Watt/utils/utils.dart';
 
 class EnergyRepository {
   final FirestoreRepository _firestoreRepo;

@@ -1,4 +1,4 @@
-import 'package:watt/utils/utils.dart';
+import 'package:Watt/utils/utils.dart';
 
 class UserData {
   final String? fullName;

@@ -1,15 +1,14 @@
+import 'package:Watt/features/auth/models/auth_state.dart';
+import 'package:Watt/features/auth/providers/auth_controller_provider.dart';
+import 'package:Watt/features/auth/providers/providers.dart';
+import 'package:Watt/features/energy/providers/energy_providers.dart';
+import 'package:Watt/features/firestore/providers/providers.dart';
+import 'package:Watt/screens/profile_configuration/typewriter_time_picker_dialog.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:url_launcher/url_launcher.dart';
-
-import 'package:watt/features/auth/models/auth_state.dart';
-import 'package:watt/features/auth/providers/auth_controller_provider.dart';
-import 'package:watt/features/auth/providers/providers.dart'; // firebaseAuthProvider, userProfileStreamProvider
-import 'package:watt/features/energy/providers/energy_providers.dart';
-import 'package:watt/features/firestore/providers/providers.dart'; // firestoreRepositoryProvider
-import 'package:watt/screens/profile_configuration/typewriter_time_picker_dialog.dart';
 
 class ProfileTabBody extends ConsumerStatefulWidget {
   const ProfileTabBody({super.key});
@@ -1324,67 +1323,6 @@ class _SettingsRow extends StatelessWidget {
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _ExpandableRow extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final bool expanded;
-  final VoidCallback onToggle;
-  final Widget child;
-
-  const _ExpandableRow({
-    required this.icon,
-    required this.title,
-    required this.expanded,
-    required this.onToggle,
-    required this.child,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          InkWell(
-            onTap: onToggle,
-            borderRadius: BorderRadius.circular(12),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 6),
-              child: Row(
-                children: [
-                  Icon(icon, color: Colors.black54),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      title,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                  Icon(
-                    expanded
-                        ? Icons.keyboard_arrow_up_rounded
-                        : Icons.keyboard_arrow_down_rounded,
-                    color: Colors.black54,
-                  ),
-                ],
-              ),
-            ),
-          ),
-          if (expanded) ...[
-            const SizedBox(height: 10),
-            // ✅ NO left padding here
-            child,
-          ],
-        ],
       ),
     );
   }

@@ -1,12 +1,12 @@
 // lib/screens/onboarding/onboarding_flow_screen.dart
+import 'package:Watt/features/onboarding/providers/onboarding_notifier_provider.dart';
+import 'package:Watt/features/onboarding/providers/profile_controller_provider.dart';
+import 'package:Watt/screens/profile_configuration/typewriter_time_picker_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:watt/features/onboarding/providers/onboarding_notifier_provider.dart';
-import 'package:watt/features/onboarding/providers/profile_controller_provider.dart';
-import 'package:watt/screens/profile_configuration/typewriter_time_picker_dialog.dart';
 
 /// Main onboarding flow widget
 ///
@@ -110,7 +110,7 @@ class _OnboardingFlowScreenState extends ConsumerState<OnboardingFlowScreen> {
           .updateChronotype(_selectedChronotype!);
     }
 
-    if (!_validateWakeBed()) return;
+    // if (!_validateWakeBed()) return;
 
     ref
         .read(onboardingDraftProvider.notifier)
@@ -125,10 +125,10 @@ class _OnboardingFlowScreenState extends ConsumerState<OnboardingFlowScreen> {
   }
 
   Future<void> _handleFinish() async {
-    if (!_validateWakeBed()) {
-      _goToPage(1);
-      return;
-    }
+    // if (!_validateWakeBed()) {
+    //   _goToPage(1);
+    //   return;
+    // }
 
     try {
       await ref.read(profileSetupControllerProvider.notifier).completeProfile();

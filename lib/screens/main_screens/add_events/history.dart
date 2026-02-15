@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:watt/features/auth/providers/providers.dart';
-import 'package:watt/features/energy/models/event.dart';
-import 'package:watt/features/energy/providers/energy_providers.dart';
-import 'package:watt/features/energy/providers/event_providers.dart';
-import 'package:watt/utils/utils.dart';
+import 'package:Watt/features/auth/providers/providers.dart';
+import 'package:Watt/features/energy/models/event.dart';
+import 'package:Watt/features/energy/providers/energy_providers.dart';
+import 'package:Watt/features/energy/providers/event_providers.dart';
+import 'package:Watt/utils/utils.dart';
 
 class HistoryTabBody extends ConsumerWidget {
   final String userId;

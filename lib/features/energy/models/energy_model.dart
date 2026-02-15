@@ -1,6 +1,6 @@
 import 'dart:math';
-import 'package:watt/features/energy/models/sleep_quality.dart';
-import 'package:watt/utils/utils.dart';
+import 'package:Watt/features/energy/models/sleep_quality.dart';
+import 'package:Watt/utils/utils.dart';
 
 import 'event.dart';
 

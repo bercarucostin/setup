@@ -1,7 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:watt/features/auth/repositories/auth_repository.dart';
-import 'package:watt/features/firestore/providers/providers.dart';
+import 'package:Watt/features/auth/repositories/auth_repository.dart';
+import 'package:Watt/features/firestore/providers/providers.dart';
 
 // INIT FIREBASE AUTH PROVIDER
 final firebaseAuthProvider = Provider<FirebaseAuth>((ref) {

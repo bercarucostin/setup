@@ -2,12 +2,12 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:watt/features/auth/providers/providers.dart'; // firebaseAuthProvider
-import 'package:watt/features/energy/models/event.dart';
-import 'package:watt/features/energy/providers/energy_providers.dart';
-import 'package:watt/features/energy/providers/event_providers.dart';
-import 'package:watt/screens/main_screens/add_events/history.dart';
-import 'package:watt/utils/utils.dart';
+import 'package:Watt/features/auth/providers/providers.dart'; // firebaseAuthProvider
+import 'package:Watt/features/energy/models/event.dart';
+import 'package:Watt/features/energy/providers/energy_providers.dart';
+import 'package:Watt/features/energy/providers/event_providers.dart';
+import 'package:Watt/screens/main_screens/add_events/history.dart';
+import 'package:Watt/utils/utils.dart';
 
 const double _rCard = 18;
 const double _pad = 10;

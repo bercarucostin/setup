@@ -1,8 +1,8 @@
+import 'package:Watt/screens/main_screens/add_events/events.dart';
+import 'package:Watt/screens/main_screens/insights.dart';
+import 'package:Watt/screens/main_screens/user_profile.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:watt/screens/main_screens/add_events/events.dart';
-import 'package:watt/screens/main_screens/insights.dart';
-import 'package:watt/screens/main_screens/user_profile.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});

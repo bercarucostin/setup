@@ -1,5 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:watt/features/auth/models/user_data.dart';
+import 'package:Watt/features/auth/models/user_data.dart';
 
 class OnboardingDraftNotifier extends Notifier<UserData> {
   @override
