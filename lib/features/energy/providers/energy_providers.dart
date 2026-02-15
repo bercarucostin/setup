@@ -105,6 +105,8 @@ class EnergyInsightsController extends AsyncNotifier<EnergyInsightsState> {
     final events = results[0] as List<Event>;
     final feedback = results[1] as Map<int, EnergyFeedbackRecord>;
     final sleepQuality = results[2] as SleepQualityRecord;
+    print("bossult");
+    print(sleepQuality.quality);
 
     // 5) Compute curve wake->bed and persist model (safe)
     final points = repo.buildDailyEnergyCurve(

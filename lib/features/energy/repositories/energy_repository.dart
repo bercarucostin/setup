@@ -247,15 +247,14 @@ class EnergyRepository {
 
     final today = dateWokeUp(profile['wakeHour'], profile['bedHour']);
 
-    final snap = await _firestoreRepo.getEntireSubSubcollection(
+    final snap = await _firestoreRepo.getDataFromSubcollection(
       parentCollectionPath: 'users',
       parentDocId: userId,
       subcollectionPath: 'sleepQualityDays',
       subDocId: customDateString(today),
-      subSubcollectionPath: 'quality',
     );
 
-    if (snap.docs.isEmpty) {
+    if (!snap.exists || snap.data() == null) {
       // Return a default record with "okay" quality if no record exists
       return SleepQualityRecord(
         epochDay: customDateString(today),
@@ -263,8 +262,7 @@ class EnergyRepository {
       );
     }
 
-    // If there are documents, return the first one (assuming only one per day)
-    final data = snap.docs.first.data();
+    final data = snap.data()!;
     return SleepQualityRecord.fromFirestore(data);
   }
 
