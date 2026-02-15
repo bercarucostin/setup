@@ -932,6 +932,62 @@ LinearGradient _tileGradient(Color base) {
   );
 }
 
+Color _rotateHue(Color c, double degrees) {
+  final hsl = HSLColor.fromColor(c);
+  final h = (hsl.hue + degrees) % 360.0;
+  return hsl.withHue(h).toColor();
+}
+
+Color _desaturate(Color c, double amount) {
+  final hsl = HSLColor.fromColor(c);
+  final s = (hsl.saturation * (1.0 - amount)).clamp(0.0, 1.0);
+  return hsl.withSaturation(s).toColor();
+}
+
+LinearGradient _tileGradientSophisticated(Color base) {
+  // Slightly calmer, richer base (prevents “cheap neon”)
+  final b = _desaturate(base, 0.10);
+
+  final topLeft = _shiftLightness(_rotateHue(b, 6), 0.10);
+  final mid = _shiftLightness(b, -0.02);
+  final bottomRight = _shiftLightness(_rotateHue(b, -10), -0.18);
+
+  return LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [topLeft, mid, bottomRight],
+    stops: const [0.0, 0.55, 1.0],
+  );
+}
+
+RadialGradient _tileHighlight(Color base) {
+  // Tinted highlight so it feels “material”, not plain white glare
+  final tint = _shiftLightness(_desaturate(base, 0.20), 0.18);
+
+  return RadialGradient(
+    center: const Alignment(-0.85, -0.75), // top-left
+    radius: 1.2,
+    colors: [
+      tint.withOpacity(0.22),
+      Colors.transparent,
+    ],
+    stops: const [0.0, 1.0],
+  );
+}
+
+LinearGradient _tileVignette() {
+  return LinearGradient(
+    begin: Alignment.topCenter,
+    end: Alignment.bottomCenter,
+    colors: [
+      Colors.transparent,
+      Colors.black.withOpacity(0.10),
+    ],
+    stops: const [0.60, 1.0],
+  );
+}
+
+
 // -----------------------------------------------------------------------------
 // Keep ALL your band logic as-is below this point.
 // (Your _EnergyBand, _bandFor, pro tips map, etc. remain unchanged.)

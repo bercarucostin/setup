@@ -9,6 +9,7 @@ import 'package:watt/features/auth/providers/auth_controller_provider.dart';
 import 'package:watt/features/auth/providers/providers.dart'; // firebaseAuthProvider, userProfileStreamProvider
 import 'package:watt/features/energy/providers/energy_providers.dart';
 import 'package:watt/features/firestore/providers/providers.dart'; // firestoreRepositoryProvider
+import 'package:watt/screens/profile_configuration/typewriter_time_picker_dialog.dart';
 
 class ProfileTabBody extends ConsumerStatefulWidget {
   const ProfileTabBody({super.key});
@@ -19,7 +20,7 @@ class ProfileTabBody extends ConsumerStatefulWidget {
 
 class _ProfileTabBodyState extends ConsumerState<ProfileTabBody> {
   // Replace with your real FAQ page:
-  static const String _faqUrl = 'https://your-domain.com/faq';
+  static const String _faqUrl = 'https://www.trywatt.app/#faq';
 
   final List<bool> _expanded = [
     false, // Notifications
@@ -28,6 +29,8 @@ class _ProfileTabBodyState extends ConsumerState<ProfileTabBody> {
 
   bool? _emailNotifOverride;
   bool? _pushNotifOverride;
+
+  static const bool _showNotificationsSection = false;
 
   int _hour0to23Round(TimeOfDay t) => (t.hour + (t.minute >= 30 ? 1 : 0)) % 24;
 
@@ -90,50 +93,77 @@ class _ProfileTabBodyState extends ConsumerState<ProfileTabBody> {
 
     final selected = await showDialog<String>(
       context: context,
-      builder: (_) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'Select Your Chronotype',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 12),
-              ...List.generate(options.length * 2 - 1, (i) {
-                if (!i.isEven) return const Divider(height: 1, thickness: 1);
-
-                final type = options[i ~/ 2];
-                final isCurrent = type == current;
-
-                final tile = ListTile(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 8),
-                  leading: _chronotypeIcon(type),
-                  title: Text(
-                    type,
-                    style: TextStyle(
-                      fontWeight: isCurrent ? FontWeight.bold : null,
-                      color: isCurrent ? Colors.black38 : null, // optional
-                    ),
+      barrierColor: Colors.black.withOpacity(0.45),
+      builder: (_) => Theme(
+        // ✅ ensures text uses the same default font as your onboarding screen
+        data: Theme.of(context).copyWith(
+          dialogTheme: const DialogThemeData(
+            backgroundColor: Colors.white,
+            surfaceTintColor:
+                Colors.transparent, // ✅ removes M3 tint (pink/purple)
+          ),
+        ),
+        child: Dialog(
+          backgroundColor: Colors.white,
+          surfaceTintColor:
+              Colors.transparent, // ✅ kills the “pink/purple” tint
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 24,
+            vertical: 40,
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // ✅ match onboarding vibe (don’t force Montserrat)
+                const Text(
+                  'Select Your Chronotype',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF1F1F2D),
                   ),
-                  trailing: isCurrent
-                      ? const Icon(Icons.check, size: 18)
-                      : null, // optional
-                  enabled: !isCurrent, // optional (also affects style)
-                  onTap: isCurrent ? null : () => Navigator.pop(context, type),
-                );
+                ),
+                const SizedBox(height: 12),
 
-                return type == 'Midday'
-                    ? Padding(
-                        padding: const EdgeInsets.only(left: 5),
-                        child: tile,
-                      )
-                    : tile;
-              }),
-            ],
+                _ChronotypeTimeCard(
+                  label: 'Morning',
+                  valueText: current == 'Morning'
+                      ? 'Selected'
+                      : 'Tap to select',
+                  icon: _chronotypeIcon('Morning'),
+                  onTap: current == 'Morning'
+                      ? null
+                      : () => Navigator.pop(context, 'Morning'),
+                ),
+                const SizedBox(height: 16),
+
+                _ChronotypeTimeCard(
+                  label: 'Midday',
+                  valueText: current == 'Midday' ? 'Selected' : 'Tap to select',
+                  icon: _chronotypeIcon('Midday'),
+                  onTap: current == 'Midday'
+                      ? null
+                      : () => Navigator.pop(context, 'Midday'),
+                ),
+                const SizedBox(height: 16),
+
+                _ChronotypeTimeCard(
+                  label: 'Evening',
+                  valueText: current == 'Evening'
+                      ? 'Selected'
+                      : 'Tap to select',
+                  icon: _chronotypeIcon('Evening'),
+                  onTap: current == 'Evening'
+                      ? null
+                      : () => Navigator.pop(context, 'Evening'),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -153,22 +183,33 @@ class _ProfileTabBodyState extends ConsumerState<ProfileTabBody> {
   }
 
   Future<void> _editSleepSchedule({String? wakeTime, String? bedTime}) async {
-    final wake = await showTimePicker(
-      context: context,
-      initialTime: _parseHHmm(wakeTime, defH: 7, defM: 0),
-      helpText: 'Select Wake Up Time',
-      initialEntryMode: TimePickerEntryMode.inputOnly,
+    final initialWake = _parseHHmm(wakeTime, defH: 7, defM: 0);
+    final initialBed = _parseHHmm(bedTime, defH: 23, defM: 0);
+
+    final wake = await showTypewriterTimePickerDialog(
+      context,
+      title: 'Wake time',
+      initial: initialWake,
+      hintText: 'Tap and type or use arrow keys',
     );
     if (wake == null) return;
 
-    final bed = await showTimePicker(
+    final bed = await showTypewriterTimePickerDialog(
       // ignore: use_build_context_synchronously
-      context: context,
-      initialTime: _parseHHmm(bedTime, defH: 23, defM: 0),
-      helpText: 'Select Bed Time',
-      initialEntryMode: TimePickerEntryMode.inputOnly,
+      context,
+      title: 'Bed time',
+      initial: initialBed,
+      hintText: 'Tap and type or use arrow keys',
     );
     if (bed == null) return;
+
+    // ✅ ADD VALIDATION HERE (after both picks)
+    final wakeMinutes = wake.hour * 60 + wake.minute;
+    final bedMinutes = bed.hour * 60 + bed.minute;
+    if (wakeMinutes >= bedMinutes) {
+      // silent failure (or show a dialog if you prefer)
+      return;
+    }
 
     final wakeStr = _toHHmm(wake);
     final bedStr = _toHHmm(bed);
@@ -182,6 +223,7 @@ class _ProfileTabBodyState extends ConsumerState<ProfileTabBody> {
       'wakeHour': wakeH,
       'bedHour': bedH,
     });
+
     ref.invalidate(energyInsightsProvider);
   }
 
@@ -196,42 +238,64 @@ class _ProfileTabBodyState extends ConsumerState<ProfileTabBody> {
 
     final selected = await showDialog<String>(
       context: context,
-      builder: (_) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'Select Your Goal',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 12),
-              ...List.generate(options.length * 2 - 1, (i) {
-                if (!i.isEven) return const Divider(height: 1, thickness: 1);
-
-                final option = options[i ~/ 2];
-                return ListTile(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 8),
-                  leading: const Icon(Icons.flag_outlined, color: Colors.teal),
-                  title: Text(
-                    option,
-                    style: TextStyle(
-                      fontWeight: option == current ? FontWeight.bold : null,
-                    ),
+      barrierColor: Colors.black.withOpacity(0.45),
+      builder: (_) => Theme(
+        data: Theme.of(context).copyWith(
+          dialogTheme: const DialogThemeData(
+            backgroundColor: Colors.white,
+            surfaceTintColor: Colors.transparent, // ✅ avoids pink/purple tint
+          ),
+        ),
+        child: Dialog(
+          backgroundColor: Colors.white,
+          surfaceTintColor: Colors.transparent,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 24,
+            vertical: 40,
+          ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Select Your Goal',
+                  style: TextStyle(
+                    fontFamily: 'Montserrat',
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF1F1F2D),
                   ),
-                  onTap: () => Navigator.pop(context, option),
-                );
-              }),
-            ],
+                ),
+                const SizedBox(height: 12),
+
+                ...options.map((opt) {
+                  final isCurrent = opt == current;
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: _GoalTimeCard(
+                      label: opt,
+                      valueText: isCurrent ? 'Selected' : 'Tap to select',
+                      isSelected: isCurrent,
+                      onTap: isCurrent
+                          ? null
+                          : () => Navigator.pop(context, opt),
+                    ),
+                  );
+                }),
+              ],
+            ),
           ),
         ),
       ),
     );
 
     if (!mounted || selected == null) return;
+    if (selected == current) return;
+
     await _mergeUserData({'goal': selected});
   }
 
@@ -956,49 +1020,51 @@ class _ProfileTabBodyState extends ConsumerState<ProfileTabBody> {
                           ),
                         ),
 
-                        _divider(indent: 16),
+                        if (_showNotificationsSection) ...[
+                          _divider(indent: 16),
 
-                        const Padding(
-                          padding: EdgeInsets.fromLTRB(16, 12, 16, 6),
-                          child: Text(
-                            'NOTIFICATIONS',
-                            style: TextStyle(
-                              fontSize: 13,
-                              letterSpacing: 1.2,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.black45,
+                          const Padding(
+                            padding: EdgeInsets.fromLTRB(16, 12, 16, 6),
+                            child: Text(
+                              'NOTIFICATIONS',
+                              style: TextStyle(
+                                fontSize: 13,
+                                letterSpacing: 1.2,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.black45,
+                              ),
                             ),
                           ),
-                        ),
 
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 6, 16, 14),
-                          child: _SimpleCard(
-                            gap: 12,
-                            children: [
-                              _SimpleSwitchRow(
-                                title: 'Email notifications',
-                                value: emailNotif,
-                                onChanged: (v) async {
-                                  setState(() => _emailNotifOverride = v);
-                                  await _mergeUserData({
-                                    'emailNotifications': v,
-                                  });
-                                },
-                              ),
-                              _SimpleSwitchRow(
-                                title: 'Push notifications',
-                                value: pushNotif,
-                                onChanged: (v) async {
-                                  setState(() => _pushNotifOverride = v);
-                                  await _mergeUserData({
-                                    'pushNotifications': v,
-                                  });
-                                },
-                              ),
-                            ],
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 6, 16, 14),
+                            child: _SimpleCard(
+                              gap: 12,
+                              children: [
+                                _SimpleSwitchRow(
+                                  title: 'Email notifications',
+                                  value: emailNotif,
+                                  onChanged: (v) async {
+                                    setState(() => _emailNotifOverride = v);
+                                    await _mergeUserData({
+                                      'emailNotifications': v,
+                                    });
+                                  },
+                                ),
+                                _SimpleSwitchRow(
+                                  title: 'Push notifications',
+                                  value: pushNotif,
+                                  onChanged: (v) async {
+                                    setState(() => _pushNotifOverride = v);
+                                    await _mergeUserData({
+                                      'pushNotifications': v,
+                                    });
+                                  },
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
+                        ],
 
                         if (hasPasswordProvider) ...[
                           _divider(indent: 16),
@@ -1545,6 +1611,197 @@ class _HeaderSignOutButtonState extends State<_HeaderSignOutButton> {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ChronotypeTimeCard extends StatelessWidget {
+  final Widget icon;
+  final String label;
+  final String valueText;
+  final VoidCallback? onTap;
+
+  const _ChronotypeTimeCard({
+    required this.icon,
+    required this.label,
+    required this.valueText,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final selected = valueText == 'Selected';
+
+    final borderColor = selected
+        ? const Color(0xFF4A4B7E)
+        : Colors.grey.shade300;
+    const iconColor = Color(0xFF4A4B7E);
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          border: Border.all(color: borderColor, width: selected ? 2 : 1),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: const [
+            BoxShadow(
+              blurRadius: 8,
+              spreadRadius: 0,
+              offset: Offset(0, 4),
+              color: Colors.black12,
+            ),
+          ],
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+        child: Row(
+          children: [
+            // Same sizing behavior as TimeCard (28px slot)
+            SizedBox(
+              height: 28,
+              width: 28,
+              child: FittedBox(
+                fit: BoxFit.contain,
+                child: IconTheme(
+                  data: const IconThemeData(color: iconColor),
+                  child: icon,
+                ),
+              ),
+            ),
+            const SizedBox(width: 16),
+
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // ✅ exact label style from your onboarding TimeCard
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF1F1F2D),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+
+                  // ✅ exact value style from your onboarding TimeCard
+                  Text(
+                    valueText,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      color: Color(0xFF4A4B7E),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            selected
+                ? const Icon(Icons.check_rounded, color: iconColor)
+                : const Icon(Icons.chevron_right, color: Colors.grey),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _GoalTimeCard extends StatelessWidget {
+  final String label;
+  final String valueText;
+  final bool isSelected;
+  final VoidCallback? onTap;
+
+  const _GoalTimeCard({
+    required this.label,
+    required this.valueText,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final borderColor = isSelected
+        ? const Color(0xFF4A4B7E)
+        : Colors.grey.shade300;
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white, // ✅ same as time card
+          border: Border.all(color: borderColor, width: isSelected ? 2 : 1),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: const [
+            BoxShadow(
+              blurRadius: 8,
+              spreadRadius: 0,
+              offset: Offset(0, 4),
+              color: Colors.black12,
+            ),
+          ],
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        child: Row(
+          children: [
+            // Icon bubble similar “time card” feel (but neutral)
+            Container(
+              height: 34,
+              width: 34,
+              decoration: BoxDecoration(
+                color: const Color(0xFF4A4B7E).withOpacity(0.10),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: const Color(0xFF4A4B7E).withOpacity(0.18),
+                ),
+              ),
+              child: Icon(
+                isSelected ? Icons.check_rounded : Icons.flag_outlined,
+                size: 18,
+                color: const Color(0xFF4A4B7E),
+              ),
+            ),
+            const SizedBox(width: 14),
+
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontFamily: 'Montserrat',
+                      fontSize: 15.5,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF1F1F2D),
+                      height: 1.15,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    valueText,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontFamily: 'Montserrat',
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF4A4B7E), // ✅ same accent as time card
+                      height: 1.1,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(width: 10),
+            Icon(Icons.chevron_right_rounded, color: Colors.grey.shade500),
+          ],
         ),
       ),
     );

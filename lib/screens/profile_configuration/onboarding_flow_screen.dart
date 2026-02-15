@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:watt/features/onboarding/providers/onboarding_notifier_provider.dart';
 import 'package:watt/features/onboarding/providers/profile_controller_provider.dart';
+import 'package:watt/screens/profile_configuration/typewriter_time_picker_dialog.dart';
 
 /// Main onboarding flow widget
 ///
@@ -57,10 +58,11 @@ class _OnboardingFlowScreenState extends ConsumerState<OnboardingFlowScreen> {
     required bool isWake,
     required TimeOfDay initialTime,
   }) async {
-    final picked = await showTimePicker(
-      context: context,
-      initialTime: initialTime,
-      helpText: isWake ? 'Select Wake Time' : 'Select Bed Time',
+    final picked = await showTypewriterTimePickerDialog(
+      context,
+      title: isWake ? 'Wake time' : 'Bed time',
+      initial: initialTime,
+      hintText: 'Tap and type or use arrow keys',
     );
 
     if (picked != null) {
