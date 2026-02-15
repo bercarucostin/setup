@@ -141,7 +141,7 @@ class _OnboardingFlowScreenState extends ConsumerState<OnboardingFlowScreen> {
   void _startFromIntro() => _nextPage();
 
   Future<void> _openLearnMore() async {
-    final url = Uri.parse('https://setupapp.io');
+    final url = Uri.parse('https://www.trywatt.app');
     final ok = await launchUrl(url, mode: LaunchMode.externalApplication);
     if (!ok) _showSnack("Couldn't open website");
   }
@@ -522,7 +522,7 @@ class _PageFeedback extends StatelessWidget {
       topSection: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          const SizedBox(height: 32),
+          const SizedBox(height: 22),
           const _FeedbackPreviewArt(),
           const SizedBox(height: 24),
           Padding(
