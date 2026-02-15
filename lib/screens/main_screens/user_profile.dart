@@ -785,8 +785,9 @@ class _ProfileTabBodyState extends ConsumerState<ProfileTabBody> {
                       obscureText: obscureConfirm,
                       textInputAction: TextInputAction.done,
                       onFieldSubmitted: (_) {
-                        if (!(formKey.currentState?.validate() ?? false))
+                        if (!(formKey.currentState?.validate() ?? false)) {
                           return;
+                        }
                         safePop(ctx, true);
                       },
                       decoration: InputDecoration(
@@ -806,8 +807,9 @@ class _ProfileTabBodyState extends ConsumerState<ProfileTabBody> {
                       validator: (v) {
                         final t = (v ?? '').trim();
                         if (t.isEmpty) return 'Required';
-                        if (t != newCtrl.text.trim())
+                        if (t != newCtrl.text.trim()) {
                           return 'Passwords do not match';
+                        }
                         return null;
                       },
                     ),
@@ -825,8 +827,10 @@ class _ProfileTabBodyState extends ConsumerState<ProfileTabBody> {
                         Expanded(
                           child: FilledButton(
                             onPressed: () {
-                              if (!(formKey.currentState?.validate() ?? false))
+                              if (!(formKey.currentState?.validate() ??
+                                  false)) {
                                 return;
+                              }
                               safePop(ctx, true);
                             },
                             child: const Text('Update'),

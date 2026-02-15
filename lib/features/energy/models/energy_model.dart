@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'package:watt/features/energy/models/sleep_quality.dart';
 import 'package:watt/utils/utils.dart';
 
 import 'event.dart';
@@ -57,7 +58,11 @@ class EnergyModel {
       defaultWakeHour: defaultWakeHour,
       defaultBedHour: defaultBedHour,
       hoursSlept: hourDifference(defaultBedHour, defaultWakeHour),
-      circadianPeakHour: intWithFallback(userData, 'circadianPeakHour', 9),
+      circadianPeakHour: intWithFallback(
+        energyModelData,
+        'circadianPeakHour',
+        9,
+      ),
 
       sPrev: doubleWithFallback(energyModelData, 'sPrev', sPrevDefault),
       sPrevNext: doubleWithFallback(energyModelData, 'sPrevNext', sPrevDefault),
@@ -102,13 +107,30 @@ class EnergyModel {
     };
   }
 
-  double _computeS0() {
-    return sPrev * exp((0 - hoursSlept) / tauSleep);
+  double _computeS0(SleepQualityRecord sleepQuality) {
+    double adjustedHoursSlept = hoursSlept.toDouble();
+    switch (sleepQuality.quality) {
+      case SleepQuality.great:
+        adjustedHoursSlept *= 1.2;
+        break;
+      case SleepQuality.good:
+        adjustedHoursSlept *= 1.1;
+        break;
+      case SleepQuality.okay:
+        break;
+      case SleepQuality.poor:
+        adjustedHoursSlept *= 0.9;
+        break;
+      case SleepQuality.veryPoor:
+        adjustedHoursSlept *= 0.8;
+        break;
+    }
+    return sPrev * exp((0 - adjustedHoursSlept) / tauSleep);
   }
 
-  double _computeS(int hour) {
+  double _computeS(int hour, SleepQualityRecord sleepQuality) {
     final int tAwake = hourDifference(defaultWakeHour, hour);
-    return 1 - (1 - _computeS0()) * exp(-tAwake / tau0);
+    return 1 - (1 - _computeS0(sleepQuality)) * exp(-tAwake / tau0);
   }
 
   // double _computeC(int hour) {
@@ -128,7 +150,13 @@ class EnergyModel {
     return sin(2 * pi * (hour - circadianPeakHour) / 24 + pi / 2);
   }
 
-  double predict(int hour, bool firstHour, bool lastHour, List<Event> events) {
+  double predict(
+    int hour,
+    bool firstHour,
+    bool lastHour,
+    List<Event> events,
+    SleepQualityRecord sleepQuality,
+  ) {
     if (firstHour == true) {
       // sPrev update
       if (sPrevNextDay != null &&
@@ -138,7 +166,7 @@ class EnergyModel {
       }
     }
 
-    final double S = _computeS(hour);
+    final double S = _computeS(hour, sleepQuality);
     final double C = _computeC(hour);
 
     if (lastHour) {
@@ -165,10 +193,11 @@ class EnergyModel {
     double actualEnergy,
     String userId,
     List<Event> events,
+    SleepQualityRecord sleepQuality,
   ) {
-    final double S = _computeS(hour);
+    final double S = _computeS(hour, sleepQuality);
     final double C = _computeC(hour);
-    final double ePred = predict(hour, false, false, events);
+    final double ePred = predict(hour, false, false, events, sleepQuality);
 
     // Map [0,100] -> [-1,1] for symmetric error surface
     final double rawPred = (ePred / 100.0) * 2.0 - 1.0;

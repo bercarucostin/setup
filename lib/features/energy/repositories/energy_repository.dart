@@ -1,8 +1,8 @@
-import 'package:watt/features/auth/providers/providers.dart';
 import 'package:watt/features/energy/models/energy_feedback.dart';
 import 'package:watt/features/energy/models/energy_model.dart';
 import 'package:watt/features/energy/models/energy_point.dart';
 import 'package:watt/features/energy/models/event.dart';
+import 'package:watt/features/energy/models/sleep_quality.dart';
 import 'package:watt/features/firestore/repository/firestore.dart';
 import 'package:watt/utils/utils.dart';
 
@@ -116,6 +116,7 @@ class EnergyRepository {
   List<EnergyPoint> buildDailyEnergyCurve({
     required EnergyModel model,
     required List<Event> events,
+    required SleepQualityRecord sleepQuality,
   }) {
     final pts = <EnergyPoint>[];
 
@@ -123,17 +124,26 @@ class EnergyRepository {
     final end = model.defaultBedHour;
 
     // first point
-    pts.add(EnergyPoint(start, model.predict(start, true, false, events)));
+    pts.add(
+      EnergyPoint(
+        start,
+        model.predict(start, true, false, events, sleepQuality),
+      ),
+    );
 
     int h = (start + 1) % 24;
 
     while (h != end) {
-      pts.add(EnergyPoint(h, model.predict(h, false, false, events)));
+      pts.add(
+        EnergyPoint(h, model.predict(h, false, false, events, sleepQuality)),
+      );
       h = (h + 1) % 24;
     }
 
     // last point at bedtime (lastHour = true)
-    pts.add(EnergyPoint(end, model.predict(end, false, true, events)));
+    pts.add(
+      EnergyPoint(end, model.predict(end, false, true, events, sleepQuality)),
+    );
     print("Energy points:");
     for (final point in pts) {
       print(
@@ -220,6 +230,42 @@ class EnergyRepository {
     }
 
     return result;
+  }
+
+  Future<SleepQualityRecord> fetchUserSleepQualityForToday(
+    String userId,
+  ) async {
+    final profileDoc = await _firestoreRepo.getData(
+      collectionPath: 'users',
+      docId: userId,
+    );
+
+    final profile = profileDoc.data();
+    if (profile == null) {
+      throw StateError('User profile not found for userId=$userId');
+    }
+
+    final today = dateWokeUp(profile['wakeHour'], profile['bedHour']);
+
+    final snap = await _firestoreRepo.getEntireSubSubcollection(
+      parentCollectionPath: 'users',
+      parentDocId: userId,
+      subcollectionPath: 'sleepQualityDays',
+      subDocId: customDateString(today),
+      subSubcollectionPath: 'quality',
+    );
+
+    if (snap.docs.isEmpty) {
+      // Return a default record with "okay" quality if no record exists
+      return SleepQualityRecord(
+        epochDay: customDateString(today),
+        quality: SleepQuality.okay,
+      );
+    }
+
+    // If there are documents, return the first one (assuming only one per day)
+    final data = snap.docs.first.data();
+    return SleepQualityRecord.fromFirestore(data);
   }
 
   String _energyLabel(double energy) {

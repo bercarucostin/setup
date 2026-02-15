@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:watt/features/auth/providers/providers.dart'
     show authStateProvider, userProfileStreamProvider;
+import 'package:watt/features/energy/models/sleep_quality.dart';
 import 'package:watt/features/energy/repositories/energy_repository.dart';
 
 import 'package:watt/features/firestore/providers/providers.dart'
@@ -23,19 +24,25 @@ class EnergyInsightsState {
   final List<EnergyPoint> points;
   final List<Event> todayEvents;
   final Map<int, EnergyFeedbackRecord> todayFeedback;
+  final SleepQualityRecord todaySleepQuality;
 
   const EnergyInsightsState({
     required this.model,
     required this.points,
     required this.todayEvents,
     required this.todayFeedback,
+    required this.todaySleepQuality,
   });
 
-  factory EnergyInsightsState.empty() => const EnergyInsightsState(
+  factory EnergyInsightsState.empty() => EnergyInsightsState(
     model: null,
-    points: <EnergyPoint>[],
-    todayEvents: <Event>[],
-    todayFeedback: <int, EnergyFeedbackRecord>{},
+    points: const <EnergyPoint>[],
+    todayEvents: const <Event>[],
+    todayFeedback: const <int, EnergyFeedbackRecord>{},
+    todaySleepQuality: SleepQualityRecord(
+      epochDay: '',
+      quality: SleepQuality.okay,
+    ),
   );
 
   EnergyInsightsState copyWith({
@@ -43,12 +50,14 @@ class EnergyInsightsState {
     List<EnergyPoint>? points,
     List<Event>? todayEvents,
     Map<int, EnergyFeedbackRecord>? todayFeedback,
+    SleepQualityRecord? todaySleepQuality,
   }) {
     return EnergyInsightsState(
       model: model ?? this.model,
       points: points ?? this.points,
       todayEvents: todayEvents ?? this.todayEvents,
       todayFeedback: todayFeedback ?? this.todayFeedback,
+      todaySleepQuality: todaySleepQuality ?? this.todaySleepQuality,
     );
   }
 }
@@ -90,13 +99,19 @@ class EnergyInsightsController extends AsyncNotifier<EnergyInsightsState> {
     final results = await Future.wait([
       repo.fetchUserEventsForToday(user.uid),
       repo.fetchUserEnergyFeedbackForToday(user.uid),
+      repo.fetchUserSleepQualityForToday(user.uid),
     ]);
 
     final events = results[0] as List<Event>;
     final feedback = results[1] as Map<int, EnergyFeedbackRecord>;
+    final sleepQuality = results[2] as SleepQualityRecord;
 
     // 5) Compute curve wake->bed and persist model (safe)
-    final points = repo.buildDailyEnergyCurve(model: model, events: events);
+    final points = repo.buildDailyEnergyCurve(
+      model: model,
+      events: events,
+      sleepQuality: sleepQuality,
+    );
     await repo.saveEnergyModel(user.uid, model);
 
     return EnergyInsightsState(
@@ -104,6 +119,7 @@ class EnergyInsightsController extends AsyncNotifier<EnergyInsightsState> {
       points: points,
       todayEvents: events,
       todayFeedback: feedback,
+      todaySleepQuality: sleepQuality,
     );
   }
 
@@ -167,7 +183,13 @@ class EnergyInsightsController extends AsyncNotifier<EnergyInsightsState> {
         .where((e) => e.applyEffect(hour) != 0.0)
         .toList();
 
-    model.updateWeights(hour, adjusted, user.uid, eventsAtHour);
+    model.updateWeights(
+      hour,
+      adjusted,
+      user.uid,
+      eventsAtHour,
+      current.todaySleepQuality,
+    );
     await repo.saveEnergyModel(user.uid, model);
 
     // 3) Reload feedback + recompute curve
@@ -175,6 +197,7 @@ class EnergyInsightsController extends AsyncNotifier<EnergyInsightsState> {
     final points = repo.buildDailyEnergyCurve(
       model: model,
       events: current.todayEvents,
+      sleepQuality: current.todaySleepQuality,
     );
 
     state = AsyncData(

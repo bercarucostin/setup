@@ -235,7 +235,7 @@ class _AddEventsScreenState extends ConsumerState<AddEventsScreen>
     // print('decimal: ${icon.codePoint}');
 
     return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.background,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       appBar: AppBar(
         elevation: 0,
         scrolledUnderElevation: 0, // ✅ stops the scroll highlight

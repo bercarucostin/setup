@@ -331,7 +331,9 @@ class _IconToggle extends StatelessWidget {
           width: 28,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: selected ? appBarColor : cs.surfaceVariant.withOpacity(0.2),
+            color: selected
+                ? appBarColor
+                : cs.surfaceContainerHighest.withOpacity(0.2),
             border: selected
                 ? null
                 : Border.all(

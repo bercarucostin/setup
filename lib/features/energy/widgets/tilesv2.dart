@@ -383,11 +383,7 @@ class _FeedbackDrawer extends StatelessWidget {
   final EnergyTileDensity density;
   final void Function(EnergyFeedback fb) onSelect;
 
-  const _FeedbackDrawer({
-    super.key,
-    required this.density,
-    required this.onSelect,
-  });
+  const _FeedbackDrawer({required this.density, required this.onSelect});
 
   @override
   Widget build(BuildContext context) {
@@ -967,10 +963,7 @@ RadialGradient _tileHighlight(Color base) {
   return RadialGradient(
     center: const Alignment(-0.85, -0.75), // top-left
     radius: 1.2,
-    colors: [
-      tint.withOpacity(0.22),
-      Colors.transparent,
-    ],
+    colors: [tint.withOpacity(0.22), Colors.transparent],
     stops: const [0.0, 1.0],
   );
 }
@@ -979,14 +972,10 @@ LinearGradient _tileVignette() {
   return LinearGradient(
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
-    colors: [
-      Colors.transparent,
-      Colors.black.withOpacity(0.10),
-    ],
+    colors: [Colors.transparent, Colors.black.withOpacity(0.10)],
     stops: const [0.60, 1.0],
   );
 }
-
 
 // -----------------------------------------------------------------------------
 // Keep ALL your band logic as-is below this point.
