@@ -202,14 +202,6 @@ class _ProfileTabBodyState extends ConsumerState<ProfileTabBody> {
     );
     if (bed == null) return;
 
-    // ✅ ADD VALIDATION HERE (after both picks)
-    final wakeMinutes = wake.hour * 60 + wake.minute;
-    final bedMinutes = bed.hour * 60 + bed.minute;
-    if (wakeMinutes >= bedMinutes) {
-      // silent failure (or show a dialog if you prefer)
-      return;
-    }
-
     final wakeStr = _toHHmm(wake);
     final bedStr = _toHHmm(bed);
 
