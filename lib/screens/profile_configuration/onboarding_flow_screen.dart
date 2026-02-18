@@ -14,8 +14,6 @@ import 'package:url_launcher/url_launcher.dart';
 /// - writes inputs into `onboardingDraftProvider`
 /// - final submit uses `profileSetupControllerProvider.completeProfile()`
 /// - router/auth reacts automatically via Firestore + auth state
-/// Main onboarding flow widget
-/// Main onboarding flow widget
 class OnboardingFlowScreen extends ConsumerStatefulWidget {
   const OnboardingFlowScreen({super.key});
 
@@ -80,22 +78,21 @@ class _OnboardingFlowScreenState extends ConsumerState<OnboardingFlowScreen> {
     return (t.hour + (t.minute >= 30 ? 1 : 0)) % 24;
   }
 
-  bool _validateWakeBed() {
-    if (_wakeTime == null || _bedTime == null) {
-      _showSnack('Please select wake and bed times');
-      return false;
-    }
+  // --- validation -----------------------------------------------------------
 
+  bool get _isChronotypeSelected => _selectedChronotype != null;
+  bool get _areTimesSelected => _wakeTime != null && _bedTime != null;
+
+  bool get _isBedAfterWake {
+    if (!_areTimesSelected) return false;
     final wakeMinutes = _wakeTime!.hour * 60 + _wakeTime!.minute;
     final bedMinutes = _bedTime!.hour * 60 + _bedTime!.minute;
-
-    if (wakeMinutes >= bedMinutes) {
-      _showSnack('Bedtime must be after wake time');
-      return false;
-    }
-
-    return true;
+    return bedMinutes > wakeMinutes;
   }
+
+  /// All must be selected and valid before enabling Continue on page 1.
+  bool get _canContinueRhythm =>
+      _isChronotypeSelected && _areTimesSelected && _isBedAfterWake;
 
   void _showSnack(String msg) {
     if (!mounted) return;
@@ -104,13 +101,19 @@ class _OnboardingFlowScreenState extends ConsumerState<OnboardingFlowScreen> {
 
   /// Called from Page 1 "Continue" (index 1 -> index 2)
   void _handleContinueRhythm() {
-    if (_selectedChronotype != null) {
-      ref
-          .read(onboardingDraftProvider.notifier)
-          .updateChronotype(_selectedChronotype!);
+    // Safety guard (even though UI should disable the button)
+    if (!_isChronotypeSelected || !_areTimesSelected) {
+      _showSnack('Please select chronotype, wake time, and bed time');
+      return;
+    }
+    if (!_isBedAfterWake) {
+      _showSnack('Bedtime must be after wake time');
+      return;
     }
 
-    // if (!_validateWakeBed()) return;
+    ref
+        .read(onboardingDraftProvider.notifier)
+        .updateChronotype(_selectedChronotype!);
 
     ref
         .read(onboardingDraftProvider.notifier)
@@ -125,11 +128,6 @@ class _OnboardingFlowScreenState extends ConsumerState<OnboardingFlowScreen> {
   }
 
   Future<void> _handleFinish() async {
-    // if (!_validateWakeBed()) {
-    //   _goToPage(1);
-    //   return;
-    // }
-
     try {
       await ref.read(profileSetupControllerProvider.notifier).completeProfile();
       context.go('/');
@@ -148,7 +146,6 @@ class _OnboardingFlowScreenState extends ConsumerState<OnboardingFlowScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Keep UI intact, but wire submission/loading to controller provider
     final submitState = ref.watch(profileSetupControllerProvider);
     final finishing = submitState.isLoading;
 
@@ -159,10 +156,8 @@ class _OnboardingFlowScreenState extends ConsumerState<OnboardingFlowScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF8F5FF),
       body: SafeArea(
-        // Wrapping with SafeArea to avoid overlap with system UI
         child: Stack(
           children: [
-            // PageView with screens
             PageView(
               controller: _pageController,
               physics: const NeverScrollableScrollPhysics(),
@@ -195,7 +190,8 @@ class _OnboardingFlowScreenState extends ConsumerState<OnboardingFlowScreen> {
                     initialTime:
                         _bedTime ?? const TimeOfDay(hour: 23, minute: 0),
                   ),
-                  onContinue: _handleContinueRhythm,
+                  // Disable Continue until ALL are selected and valid
+                  onContinue: _canContinueRhythm ? _handleContinueRhythm : null,
                   currentIndex: 1,
                   onLearnMore: _openLearnMore,
                 ),
@@ -212,9 +208,7 @@ class _OnboardingFlowScreenState extends ConsumerState<OnboardingFlowScreen> {
                 ),
               ],
             ),
-            // Custom back button at the top, conditionally visible
-            if (_pageIndex >
-                0) // Only show back button on pages after the first one
+            if (_pageIndex > 0)
               Positioned(
                 top: 10,
                 left: 16,
@@ -346,7 +340,7 @@ class _PageRhythmSetup extends StatelessWidget {
   final VoidCallback onPickWake;
   final VoidCallback onPickBed;
 
-  final VoidCallback onContinue;
+  final VoidCallback? onContinue;
   final int currentIndex;
   final VoidCallback onLearnMore;
 
@@ -589,36 +583,43 @@ class _PageFooter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDisabled = onButtonTap == null || isLoading;
+
     return Column(
       children: [
         SizedBox(
           width: double.infinity,
           child: GestureDetector(
-            onTap: onButtonTap,
-            child: Container(
-              height: 56,
-              decoration: BoxDecoration(
-                color: const Color(0xFF4A4B7E),
-                borderRadius: BorderRadius.circular(16),
+            onTap: isDisabled ? null : onButtonTap,
+            child: Opacity(
+              opacity: isDisabled ? 0.5 : 1.0,
+              child: Container(
+                height: 56,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF4A4B7E),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                alignment: Alignment.center,
+                child: isLoading
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            Colors.white,
+                          ),
+                        ),
+                      )
+                    : Text(
+                        buttonLabel,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 16,
+                        ),
+                      ),
               ),
-              alignment: Alignment.center,
-              child: isLoading
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                      ),
-                    )
-                  : Text(
-                      buttonLabel,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 16,
-                      ),
-                    ),
             ),
           ),
         ),
@@ -840,14 +841,6 @@ class _TimeCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const DefaultTextStyle(
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF1F1F2D),
-                    ),
-                    child: SizedBox(),
-                  ),
                   Text(
                     label,
                     style: const TextStyle(
