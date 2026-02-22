@@ -52,7 +52,7 @@ class _AddEventsScreenState extends ConsumerState<AddEventsScreen>
   Future<_TimeConfig?> _pickTimeConfig() async {
     final now = DateTime.now();
     TimeOfDay startTime = TimeOfDay(hour: now.hour, minute: 0);
-    int intensity = 5; // 1-10 range, default to middle
+    double intensity = 2; // 1-5 range, default to middle
 
     return showModalBottomSheet<_TimeConfig?>(
       context: context,
@@ -133,18 +133,18 @@ class _AddEventsScreenState extends ConsumerState<AddEventsScreen>
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Text(
-                          'Intensity: $intensity / 10',
+                          'Intensity: $intensity / 5',
                           style: Theme.of(context).textTheme.titleMedium,
                         ),
                         const SizedBox(height: 8),
                         Slider(
                           value: intensity.toDouble(),
                           min: 1,
-                          max: 10,
-                          divisions: 9,
+                          max: 5,
+                          divisions: 4,
                           label: '$intensity',
                           onChanged: (val) =>
-                              setState(() => intensity = val.toInt()),
+                              setState(() => intensity = val.toDouble()),
                         ),
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -156,7 +156,7 @@ class _AddEventsScreenState extends ConsumerState<AddEventsScreen>
                                 style: Theme.of(context).textTheme.bodySmall,
                               ),
                               Text(
-                                '10',
+                                '5',
                                 style: Theme.of(context).textTheme.bodySmall,
                               ),
                             ],
@@ -209,7 +209,7 @@ class _AddEventsScreenState extends ConsumerState<AddEventsScreen>
       if (!mounted) return;
       _snack(
         context,
-        '"${ev.name}" added at ${_hhmm(config.startTime)} (intensity: ${config.intensity}/10)',
+        '"${ev.name}" added at ${_hhmm(config.startTime)} (intensity: ${config.intensity}/5)',
       );
       // No invalidate needed: History uses a stream.
       // ✅ force Insights to recompute
@@ -797,6 +797,6 @@ class _CupertinoSheet extends StatelessWidget {
 
 class _TimeConfig {
   final TimeOfDay startTime;
-  final int intensity; // 1-10
+  final double intensity; // 1-5
   const _TimeConfig({required this.startTime, required this.intensity});
 }
