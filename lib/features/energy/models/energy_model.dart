@@ -58,7 +58,7 @@ class EnergyModel {
       defaultWakeHour: defaultWakeHour,
       defaultBedHour: defaultBedHour,
       hoursSlept: hourDifference(defaultBedHour, defaultWakeHour),
-      circadianPeakHour: intWithFallback(
+      circadianPeakHour: doubleWithFallback(
         energyModelData,
         'circadianPeakHour',
         9,
@@ -95,6 +95,7 @@ class EnergyModel {
       'circadianPeakHour': circadianPeakHour,
       'sPrev': sPrev,
       'sPrevNext': sPrevNext,
+      'sPrevNextDay': sPrevNextDay,
       'sPrevDefault': sPrevDefault,
       'wS': wS,
       'wC': wC,

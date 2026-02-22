@@ -57,3 +57,5 @@ ios/fastlane
 # Optional: local fastlane configs
 ios/fastlane/.env
 
+
+**/*.keystore
