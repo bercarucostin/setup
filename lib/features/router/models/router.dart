@@ -15,6 +15,8 @@ import 'package:Watt/screens/home_screen.dart';
 
 import 'package:Watt/screens/profile_configuration/onboarding_flow_screen.dart';
 
+final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
+
 /// Minimal Listenable (NOT ChangeNotifier) for go_router refreshListenable.
 class RouterRefreshListenable implements Listenable {
   final Set<VoidCallback> _listeners = <VoidCallback>{};
@@ -61,6 +63,7 @@ final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     initialLocation: '/',
     refreshListenable: refresh,
+    navigatorKey: rootNavigatorKey,
     //observers: [RouteLoggingObserver()],
     redirect: (context, state) {
       final auth = ref.read(authControllerProvider);

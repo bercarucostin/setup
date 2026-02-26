@@ -5,6 +5,7 @@ import 'package:Watt/features/energy/models/event.dart';
 import 'package:Watt/features/energy/providers/energy_providers.dart';
 import 'package:Watt/features/energy/providers/event_providers.dart';
 import 'package:Watt/utils/utils.dart';
+import 'package:intl/intl.dart';
 
 class HistoryTabBody extends ConsumerWidget {
   final String userId;
@@ -14,6 +15,15 @@ class HistoryTabBody extends ConsumerWidget {
     final hh = h.floor();
     final mm = ((h - hh) * 60).round();
     return '${(hh % 24).toString().padLeft(2, '0')}:${(mm % 60).toString().padLeft(2, '0')}';
+  }
+
+  String _intensityLabel(double? value) {
+    final raw = (value ?? 3.0).round(); // 3 = baseline
+    final v = raw < 1 ? 1 : (raw > 5 ? 5 : raw);
+
+    if (v <= 2) return 'Light';
+    if (v == 3) return 'Moderate';
+    return 'Strong';
   }
 
   Future<void> _deleteEvent(
@@ -58,31 +68,63 @@ class HistoryTabBody extends ConsumerWidget {
           return const Center(child: Text('No events added yet.'));
         }
 
+        // Sort by createdAt (newest first), nulls last
+        final sorted = [...events]
+          ..sort((a, b) {
+            final aDate = a.createdAtDate?.toLocal();
+            final bDate = b.createdAtDate?.toLocal();
+
+            if (aDate == null && bDate == null) {
+              return (a.startHour ?? 0).compareTo(b.startHour ?? 0);
+            }
+            if (aDate == null) return 1; // nulls last
+            if (bDate == null) return -1;
+
+            final byCreated = bDate.compareTo(aDate); // newest first
+            if (byCreated != 0) return byCreated;
+
+            // Tie-breaker
+            return (a.startHour ?? 0).compareTo(b.startHour ?? 0);
+          });
+
+        // Group by createdAt calendar day
+        final grouped = <DateTime?, List<Event>>{};
+        for (final ev in sorted) {
+          final dt = ev.createdAtDate?.toLocal();
+          final dayKey = dt == null
+              ? null
+              : DateTime(dt.year, dt.month, dt.day);
+          grouped.putIfAbsent(dayKey, () => []).add(ev);
+        }
+
+        // Sort group keys (newest day first, null last)
+        final dayKeys = grouped.keys.toList()
+          ..sort((a, b) {
+            if (a == null && b == null) return 0;
+            if (a == null) return 1;
+            if (b == null) return -1;
+            return b.compareTo(a); // newest day first
+          });
+
         return Column(
           children: [
             Expanded(
               child: ListView.separated(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-                itemCount: events.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 18),
+                padding: const EdgeInsets.fromLTRB(14, 12, 14, 18),
+                itemCount: dayKeys.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 10),
                 itemBuilder: (context, i) {
-                  final ev = events[i];
-                  final start = (ev.startHour ?? 0).toDouble();
-                  final intensity = (ev.intensity ?? 1);
+                  final day = dayKeys[i];
+                  final dayEvents = grouped[day]!;
 
-                  return _HistoryRow(
-                    title: ev.name,
-                    start: _hhmm(start),
-                    intensity: intensity.toStringAsFixed(1),
-                    isBoost: ev.booster == true,
-                    onDelete: ev.id == null
-                        ? null
-                        : () => _deleteEvent(
-                            ref,
-                            userId: userId,
-                            eventId: ev.id!,
-                          ),
-                    isLast: i == events.length - 1,
+                  return _HistoryDayCard(
+                    day: day,
+                    events: dayEvents,
+                    hhmm: _hhmm,
+                    intensityLabel: _intensityLabel,
+                    onDeleteEvent: (eventId) async {
+                      await _deleteEvent(ref, userId: userId, eventId: eventId);
+                    },
                   );
                 },
               ),
@@ -95,159 +137,216 @@ class HistoryTabBody extends ConsumerWidget {
   }
 }
 
+class _HistoryHeader extends StatelessWidget {
+  final int eventCount;
+  final DateTime? displayDate;
+
+  const _HistoryHeader({required this.eventCount, this.displayDate});
+
+  @override
+  Widget build(BuildContext context) {
+    final muted = Colors.blueGrey.shade600;
+    final date = displayDate ?? DateTime.now();
+    final dateLabel = DateFormat('EEE, MMM d').format(date); // Mon, Feb 22
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFFFFFFFF), Color(0xFFF8FAFC)],
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: const Color(0xFFEDE9FE),
+              border: Border.all(color: const Color(0xFFDDD6FE)),
+            ),
+            child: const Center(
+              child: Icon(
+                Icons.bolt_rounded,
+                size: 15,
+                color: Color(0xFF6D4BCB),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Today · $dateLabel',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.2,
+                    color: muted,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Events timeline',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey.shade500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(999),
+              color: Colors.white,
+              border: Border.all(color: const Color(0xFFE5E7EB)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.event, size: 14, color: Colors.blueGrey.shade500),
+                const SizedBox(width: 6),
+                Text(
+                  '$eventCount',
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF1F2937),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _HistoryRow extends StatelessWidget {
   final String title;
   final String start;
-  final String intensity;
+  final String intensity; // Light / Moderate / Strong
   final bool isBoost;
+  final IconSpec? iconSpec;
   final VoidCallback? onDelete;
-  final bool isLast;
 
   const _HistoryRow({
     required this.title,
     required this.start,
     required this.intensity,
     required this.isBoost,
+    required this.iconSpec,
     required this.onDelete,
-    required this.isLast,
   });
 
+  Color get _accent =>
+      isBoost ? const Color(0xFF3F51D1) : const Color(0xFFF05A28);
+
+  double _segmentWidth(String label) {
+    switch (label.toLowerCase()) {
+      case 'light':
+        return 24;
+      case 'moderate':
+        return 38;
+      case 'strong':
+        return 54;
+      default:
+        return 38;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    const double leftW = 76.0;
-    const double rowMinHeight = 96.0;
+    final iconData = iconSpec?.toIconData() ?? _iconForEventName(title);
 
-    return ConstrainedBox(
-      constraints: const BoxConstraints(minHeight: rowMinHeight),
+    return Container(
+      height: 64,
+      padding: const EdgeInsets.symmetric(horizontal: 2),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
+          // Tighter time column (was too wide)
           SizedBox(
-            width: leftW,
-            child: SizedBox(
-              height: rowMinHeight,
-              child: Stack(
-                fit: StackFit.expand,
-                alignment: Alignment.topCenter,
-                clipBehavior: Clip.none,
-                children: [
-                  Positioned.fill(
-                    top: 6,
-                    bottom: isLast ? 28 : 0,
-                    child: Align(
-                      alignment: Alignment.center,
-                      child: Container(
-                        width: 2,
-                        decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.06),
-                          borderRadius: BorderRadius.circular(1),
-                        ),
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    left: 0,
-                    top: 0,
-                    child: _IconTile(boost: isBoost, name: title),
-                  ),
-                  Positioned(
-                    right: 0,
-                    top: 0,
-                    child: Container(
-                      width: 18,
-                      height: 18,
-                      decoration: BoxDecoration(
-                        color: isBoost
-                            ? const Color(0xFF10B981)
-                            : const Color(0xFFF59E0B),
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.08),
-                            blurRadius: 6,
-                            offset: const Offset(0, 3),
-                          ),
-                        ],
-                      ),
-                      child: Icon(
-                        isBoost ? Icons.trending_up : Icons.trending_down,
-                        size: 12,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                ],
+            width: 56,
+            child: Text(
+              start,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: Colors.blueGrey.shade500,
+                letterSpacing: 0.2,
               ),
             ),
           ),
 
+          // Vertical accent bar (closer to time now)
+          Container(
+            width: 4,
+            height: 46,
+            decoration: BoxDecoration(
+              color: _accent,
+              borderRadius: BorderRadius.circular(999),
+            ),
+          ),
+
+          const SizedBox(width: 12),
+
+          // Event icon (same icon system)
+          SizedBox(
+            width: 28,
+            child: Center(
+              child: Icon(iconData, size: 23, color: Colors.black87),
+            ),
+          ),
+
+          const SizedBox(width: 10),
+
+          // Title
           Expanded(
-            child: Container(
-              padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surface,
-                borderRadius: BorderRadius.circular(18),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.04),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-                border: Border.all(color: Colors.black.withOpacity(0.06)),
+            child: Text(
+              title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF202124),
               ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.titleMedium
-                              ?.copyWith(
-                                fontWeight: FontWeight.w800,
-                                color: isBoost
-                                    ? const Color(0xFF2563EB)
-                                    : const Color(0xFFDC2626),
-                              ),
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.schedule, size: 16),
-                            const SizedBox(width: 6),
-                            _Chip(text: start),
-                            const Padding(
-                              padding: EdgeInsets.symmetric(horizontal: 6),
-                              child: Icon(
-                                Icons.arrow_right_alt_rounded,
-                                size: 18,
-                              ),
-                            ),
-                            _Chip(text: intensity),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  SizedBox(
-                    height: 44,
-                    width: 44,
-                    child: Center(
-                      child: IconButton(
-                        onPressed: onDelete,
-                        icon: const Icon(Icons.delete_outline),
-                        tooltip: 'Delete',
-                        splashRadius: 22,
-                      ),
-                    ),
-                  ),
-                ],
+            ),
+          ),
+
+          const SizedBox(width: 8),
+
+          // Intensity line
+          _IntensityLabelPill(label: intensity),
+
+          const SizedBox(width: 6),
+
+          // Delete icon (kept on the right)
+          SizedBox(
+            width: 34,
+            height: 34,
+            child: IconButton(
+              onPressed: onDelete,
+              tooltip: 'Delete',
+              splashRadius: 18,
+              padding: EdgeInsets.zero,
+              icon: Icon(
+                Icons.delete_forever_rounded,
+                size: 18,
+                color: Colors.red,
               ),
             ),
           ),
@@ -257,75 +356,82 @@ class _HistoryRow extends StatelessWidget {
   }
 }
 
-class _Chip extends StatelessWidget {
-  final String text;
-  const _Chip({required this.text});
+class _IntensityLabelPill extends StatelessWidget {
+  final String label;
+  const _IntensityLabelPill({required this.label});
 
   @override
   Widget build(BuildContext context) {
+    final colors = _intensityLabelColors(label);
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.05),
+        color: colors.bg,
         borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: colors.border),
       ),
       child: Text(
-        text,
-        style: Theme.of(
-          context,
-        ).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w700),
+        label,
+        style: TextStyle(
+          fontSize: 11.5,
+          fontWeight: FontWeight.w700,
+          color: colors.fg,
+          letterSpacing: 0.1,
+        ),
       ),
     );
   }
 }
 
-class _IconTile extends StatelessWidget {
-  final bool boost;
-  final String name;
-  final IconSpec? iconSpec;
+class _LabelColors {
+  final Color bg;
+  final Color fg;
+  final Color border;
 
-  // ignore: unused_element_parameter
-  const _IconTile({required this.boost, required this.name, this.iconSpec});
+  const _LabelColors({
+    required this.bg,
+    required this.fg,
+    required this.border,
+  });
+}
 
-  @override
-  Widget build(BuildContext context) {
-    final IconData iconData = iconSpec?.toIconData() ?? _iconForEventName(name);
-
-    final grad = boost
-        ? const LinearGradient(
-            colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          )
-        : const LinearGradient(
-            colors: [Color(0xFFF97316), Color(0xFFF43F5E)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          );
-
-    return Container(
-      width: 56,
-      height: 56,
-      decoration: BoxDecoration(
-        gradient: grad,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.10),
-            blurRadius: 14,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      alignment: Alignment.center,
-      child: Icon(iconData, color: Colors.white, size: 26),
-    );
+_LabelColors _intensityLabelColors(String label) {
+  switch (label.toLowerCase()) {
+    case 'light':
+      return const _LabelColors(
+        bg: Color(0xFFF3F4F6),
+        fg: Color(0xFF4B5563),
+        border: Color(0xFFE5E7EB),
+      );
+    case 'moderate':
+      return const _LabelColors(
+        bg: Color(0xFFEDE9FE),
+        fg: Color(0xFF6D28D9),
+        border: Color(0xFFDDD6FE),
+      );
+    case 'strong':
+      return const _LabelColors(
+        bg: Color(0xFFDDD6FE),
+        fg: Color(0xFF5B21B6),
+        border: Color(0xFFC4B5FD),
+      );
+    default:
+      return const _LabelColors(
+        bg: Color(0xFFF3F4F6),
+        fg: Color(0xFF4B5563),
+        border: Color(0xFFE5E7EB),
+      );
   }
 }
 
 // ==================== Misc helpers =========================================
 IconData _iconForEventName(String name) {
   final n = name.toLowerCase();
+
+  if (n.contains('alcohol') || n.contains('wine') || n.contains('beer')) {
+    return Icons.wine_bar_rounded;
+  }
   if (n.contains('coffee') || n.contains('cafe')) {
     return Icons.local_cafe_rounded;
   }
@@ -348,4 +454,195 @@ IconData _iconForEventName(String name) {
     return Icons.self_improvement_rounded;
   }
   return Icons.blur_circular_rounded;
+}
+
+class _HistoryDayCard extends StatelessWidget {
+  final DateTime? day;
+  final List<Event> events;
+  final String Function(double) hhmm;
+  final String Function(double?) intensityLabel;
+  final Future<void> Function(String eventId) onDeleteEvent;
+
+  const _HistoryDayCard({
+    required this.day,
+    required this.events,
+    required this.hhmm,
+    required this.intensityLabel,
+    required this.onDeleteEvent,
+  });
+
+  String _dayTitle(DateTime? d) {
+    if (d == null) return 'Unknown date';
+
+    final now = DateTime.now();
+    if (DateUtils.isSameDay(d, now)) {
+      return 'Today · ${DateFormat('EEE, MMM d').format(d)}';
+    }
+
+    final yesterday = now.subtract(const Duration(days: 1));
+    if (DateUtils.isSameDay(d, yesterday)) {
+      return 'Yesterday · ${DateFormat('EEE, MMM d').format(d)}';
+    }
+
+    return DateFormat('EEE, MMM d').format(d);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Inside each day-card, sort by timeline hour (nice for display)
+    final rows = [...events]
+      ..sort((a, b) {
+        final byHour = (a.startHour ?? 0).compareTo(b.startHour ?? 0);
+        if (byHour != 0) return byHour;
+
+        final aDate = a.createdAtDate;
+        final bDate = b.createdAtDate;
+        if (aDate == null && bDate == null) return 0;
+        if (aDate == null) return 1;
+        if (bDate == null) return -1;
+        return aDate.compareTo(bDate);
+      });
+
+    final muted = Colors.blueGrey.shade600;
+
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+        color: Colors.white,
+        boxShadow: const [
+          BoxShadow(
+            blurRadius: 10,
+            offset: Offset(0, 2),
+            color: Color(0x08000000),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          // Header (per day)
+          Container(
+            padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
+            decoration: const BoxDecoration(
+              borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFFFFFFFF), Color(0xFFF8FAFC)],
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 28,
+                  height: 28,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: const Color(0xFFEDE9FE),
+                    border: Border.all(color: const Color(0xFFDDD6FE)),
+                  ),
+                  child: const Center(
+                    child: Icon(
+                      Icons.bolt_rounded,
+                      size: 15,
+                      color: Color(0xFF6D4BCB),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _dayTitle(day),
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.2,
+                          color: muted,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Events timeline',
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey.shade500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 7,
+                  ),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(999),
+                    color: Colors.white,
+                    border: Border.all(color: const Color(0xFFE5E7EB)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.event,
+                        size: 14,
+                        color: Colors.blueGrey.shade500,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        '${rows.length}',
+                        style: const TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF1F2937),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          Divider(color: Colors.grey.shade200, height: 1, thickness: 1),
+
+          // Rows
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
+            child: Column(
+              children: [
+                for (int i = 0; i < rows.length; i++) ...[
+                  _HistoryRow(
+                    title: rows[i].name,
+                    start: hhmm((rows[i].startHour ?? 0).toDouble()),
+                    intensity: intensityLabel(rows[i].intensity),
+                    isBoost: rows[i].booster == true,
+                    iconSpec: rows[i].icon,
+                    onDelete: rows[i].id == null
+                        ? null
+                        : () => onDeleteEvent(rows[i].id!),
+                  ),
+                  if (i != rows.length - 1)
+                    Divider(
+                      height: 1,
+                      thickness: 1,
+                      color: Colors.grey.shade100,
+                      indent: 56,
+                      endIndent: 8,
+                    ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

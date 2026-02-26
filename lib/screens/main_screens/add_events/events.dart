@@ -49,10 +49,25 @@ class _AddEventsScreenState extends ConsumerState<AddEventsScreen>
   void _snack(BuildContext context, String msg) =>
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
 
+  String _intensityBucket(double value) {
+    final v = value.round();
+    if (v <= 2) return 'Light';
+    if (v == 3) return 'Moderate';
+    return 'Strong';
+  }
+
+  TextStyle _intensityLabelStyle(BuildContext context, bool selected) {
+    return Theme.of(context).textTheme.titleMedium!.copyWith(
+      fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+      color: selected ? Colors.black87 : Colors.grey.shade500,
+      letterSpacing: 0.1,
+    );
+  }
+
   Future<_TimeConfig?> _pickTimeConfig() async {
     final now = DateTime.now();
     TimeOfDay startTime = TimeOfDay(hour: now.hour, minute: 0);
-    double intensity = 2; // 1-5 range, default to middle
+    double intensity = 3; // 1-5 range, baseline in the middle
 
     return showModalBottomSheet<_TimeConfig?>(
       context: context,
@@ -63,6 +78,11 @@ class _AddEventsScreenState extends ConsumerState<AddEventsScreen>
         return _CupertinoSheet(
           child: StatefulBuilder(
             builder: (ctx, setState) {
+              final bucket = _intensityBucket(intensity);
+              final isLight = bucket == 'Light';
+              final isModerate = bucket == 'Moderate';
+              final isStrong = bucket == 'Strong';
+
               return Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -127,45 +147,95 @@ class _AddEventsScreenState extends ConsumerState<AddEventsScreen>
                     ),
                   ),
                   const Divider(height: 1),
+
+                  // --- Intensity slider (styled like your screenshot) ---
                   SizedBox(
-                    height: 120,
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          'Intensity: $intensity / 5',
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                        const SizedBox(height: 8),
-                        Slider(
-                          value: intensity.toDouble(),
-                          min: 1,
-                          max: 5,
-                          divisions: 4,
-                          label: '$intensity',
-                          onChanged: (val) =>
-                              setState(() => intensity = val.toDouble()),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 24),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                '1',
-                                style: Theme.of(context).textTheme.bodySmall,
-                              ),
-                              Text(
-                                '5',
-                                style: Theme.of(context).textTheme.bodySmall,
-                              ),
-                            ],
+                    height: 130,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(18, 8, 18, 6),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            'Intensity',
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(
+                                  color: Colors.grey.shade600,
+                                  fontWeight: FontWeight.w700,
+                                ),
                           ),
-                        ),
-                      ],
+                          const SizedBox(height: 6),
+                          SliderTheme(
+                            data: SliderTheme.of(context).copyWith(
+                              trackHeight: 4,
+                              activeTrackColor: const Color(0xFFE5E7EB),
+                              inactiveTrackColor: const Color(0xFFE5E7EB),
+                              thumbColor: const Color(0xFF6D4BCB), // purple
+                              overlayShape: SliderComponentShape.noOverlay,
+                              tickMarkShape: SliderTickMarkShape.noTickMark,
+                              thumbShape: const RoundSliderThumbShape(
+                                enabledThumbRadius: 10,
+                              ),
+                              showValueIndicator: ShowValueIndicator.never,
+                            ),
+                            child: Slider(
+                              value: intensity,
+                              min: 1,
+                              max: 5,
+                              divisions: 2, // snaps to 1, 3, 5 only
+                              onChanged: (val) {
+                                setState(() => intensity = val);
+                              },
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 4),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Align(
+                                    alignment: Alignment.centerLeft,
+                                    child: Text(
+                                      'Light',
+                                      style: _intensityLabelStyle(
+                                        context,
+                                        isLight,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                Expanded(
+                                  child: Center(
+                                    child: Text(
+                                      'Moderate',
+                                      style: _intensityLabelStyle(
+                                        context,
+                                        isModerate,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                Expanded(
+                                  child: Align(
+                                    alignment: Alignment.centerRight,
+                                    child: Text(
+                                      'Strong',
+                                      style: _intensityLabelStyle(
+                                        context,
+                                        isStrong,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 16),
+
+                  const SizedBox(height: 12),
                 ],
               );
             },
@@ -207,10 +277,7 @@ class _AddEventsScreenState extends ConsumerState<AddEventsScreen>
       );
 
       if (!mounted) return;
-      _snack(
-        context,
-        '"${ev.name}" added at ${_hhmm(config.startTime)} (intensity: ${config.intensity}/5)',
-      );
+
       // No invalidate needed: History uses a stream.
       // ✅ force Insights to recompute
       ref.invalidate(energyInsightsProvider);

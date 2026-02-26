@@ -3,22 +3,23 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 
 class Event {
-  final String? id; // Optional ID for existing events
+  final String? id;
   int? startHour;
-  double? intensity; // 1-10 scale
+  double? intensity;
   final String name;
   final String description;
 
-  // Baseline defaults (typically for a 1-hour “unit”)
-  final int initialDuration;
+  final String? createdAt; // ✅ NEW
+
+  final double initialDuration;
   final double initialEffect;
   final double initialDecay;
-  final int tailDuration;
+  final double tailDuration;
   final double tailEffect;
   final double tailDecay;
   final bool booster;
 
-  final IconSpec? icon; // NEW
+  final IconSpec? icon;
 
   Event({
     this.id,
@@ -33,6 +34,7 @@ class Event {
     required this.tailDecay,
     required this.booster,
     this.description = '',
+    this.createdAt, // ✅ NEW
     this.icon,
   });
 
@@ -40,16 +42,17 @@ class Event {
     return Event(
       id: (data['id'] ?? data['docId']) as String?,
       startHour: data['startHour'] ?? 0,
-      intensity: data['intensity'] ?? 1.0,
+      intensity: (data['intensity'] as num?)?.toDouble() ?? 3.0,
       name: data['name'],
-      initialDuration: data['initialDuration'].toInt(),
+      initialDuration: (data['initialDuration'] as num).toDouble(),
       initialEffect: data['initialEffect'].toDouble(),
       initialDecay: data['initialDecay'].toDouble(),
-      tailDuration: data['tailDuration'].toInt(),
+      tailDuration: (data['tailDuration'] as num).toDouble(),
       tailEffect: data['tailEffect'].toDouble(),
       tailDecay: data['tailDecay'].toDouble(),
       booster: data['booster'] ?? false,
       description: data['description'] ?? '',
+      createdAt: data['createdAt'] as String?, // ✅ NEW
       icon: (data['icon'] is Map<String, dynamic>)
           ? IconSpec.fromFirestore(data['icon'] as Map<String, dynamic>)
           : null,
@@ -73,9 +76,38 @@ class Event {
     };
   }
 
+  @override
+  String toString() {
+    return 'Event('
+        'id: $id, '
+        'name: $name, '
+        'description: $description, '
+        'startHour: $startHour, '
+        'intensity: $intensity, '
+        'createdAt: $createdAt, '
+        'initialDuration: $initialDuration, '
+        'initialEffect: $initialEffect, '
+        'initialDecay: $initialDecay, '
+        'tailDuration: $tailDuration, '
+        'tailEffect: $tailEffect, '
+        'tailDecay: $tailDecay, '
+        'booster: $booster, '
+        'icon: $icon'
+        ')';
+  }
+
+  // Optional helper if you want DateTime usage in UI/sorting
+  DateTime? get createdAtDate {
+    final v = createdAt;
+    if (v == null || v.isEmpty) return null;
+    return DateTime.tryParse(v);
+  }
+
   double get _scale {
-    // Scale factor to convert hours to the 0-23 range
-    return intensity!;
+    // Centered scaling for UI slider 1..5, with 3 = baseline (1.0x)
+    final i = intensity ?? 3.0;
+    final clamped = i < 1.0 ? 1.0 : (i > 5.0 ? 5.0 : i);
+    return 1.0 + (clamped - 3.0) * 0.25; // 1->0.5x, 3->1.0x, 5->1.5x
   }
 
   double get _mainEffectDuration => initialDuration * _scale;
@@ -86,17 +118,24 @@ class Event {
   double get _tailDecay => max(tailDecay, 1e-9) / max(_scale, 1e-9);
 
   double applyEffect(int hour) {
+    // Null safety guards
+    final sh = startHour;
+    if (sh == null) return 0.0;
+
     // hours since start, wrapped forward
-    final int t = (hour - startHour!) % 24; // 0..23
+    final int t = (hour - sh) % 24; // 0..23
+
     // length of the interval start->end
     final double totalDuration = _mainEffectDuration + _tailEffectDuration;
 
     // No effect if zero duration
     if (totalDuration <= 0) return 0.0;
+
     // If duration >= 24h, effect applies to all hours; otherwise check bounds
     if (totalDuration < 24 && t >= totalDuration) return 0.0;
 
-    if (t <= _mainEffectDuration) {
+    // Main/tail boundary fix: half-open interval [0, mainDuration)
+    if (t < _mainEffectDuration) {
       return _mainEffect * exp(-_mainDecay * t);
     } else {
       final tailT = (t - _mainEffectDuration).toDouble();

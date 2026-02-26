@@ -595,15 +595,17 @@ class _ProfileTabBodyState extends ConsumerState<ProfileTabBody> {
 
     return Row(
       children: [
-        CircleAvatar(
-          radius: 24,
-          backgroundColor: Colors.grey.shade200,
-          child: Text(
-            initials(displayName),
-            style: const TextStyle(
-              fontWeight: FontWeight.w600,
-              color: Colors.black87,
-            ),
+        Container(
+          width: 48,
+          height: 48,
+          decoration: const BoxDecoration(
+            shape: BoxShape.circle,
+            color: Color(0xFFEDE9FE), // soft violet
+          ),
+          child: const Icon(
+            Icons.self_improvement_rounded,
+            size: 24,
+            color: Color(0xFF6D4BCB), // purple
           ),
         ),
         const SizedBox(width: 12),
@@ -625,9 +627,9 @@ class _ProfileTabBodyState extends ConsumerState<ProfileTabBody> {
                 const SizedBox(height: 2),
                 Text(
                   email,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 14, color: Colors.black54),
+                  softWrap: true,
+                  overflow: TextOverflow.visible,
+                  style: const TextStyle(fontSize: 12, color: Colors.black54),
                 ),
               ],
             ],
