@@ -29,9 +29,9 @@ android {
     signingConfigs {
         create("release") {
             keyAlias = System.getenv("KEYSTORE_KEY_ALIAS") ?: "my-key-alias"
-            keyPassword = System.getenv("KEYSTORE_KEY_PASSWORD")
-            storeFile = file(System.getenv("KEYSTORE_PATH") ?: "./my-release-key.keystore")
-            storePassword = System.getenv("KEYSTORE_PASSWORD")
+            keyPassword = System.getenv("KEYSTORE_KEY_PASSWORD") ?: "WattAppTeam5937"
+            storeFile = file(System.getenv("KEYSTORE_PATH") ?: "${rootProject.projectDir}/../my-release-key.keystore")
+            storePassword = System.getenv("KEYSTORE_PASSWORD") ?: "WattAppTeam5937"
         }
     }
 

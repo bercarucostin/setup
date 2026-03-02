@@ -87,7 +87,9 @@ class _OnboardingFlowScreenState extends ConsumerState<OnboardingFlowScreen> {
     if (!_areTimesSelected) return false;
     final wakeMinutes = _wakeTime!.hour * 60 + _wakeTime!.minute;
     final bedMinutes = _bedTime!.hour * 60 + _bedTime!.minute;
-    return bedMinutes > wakeMinutes;
+    // Bedtime must be different from wake time
+    // Allow early morning bedtimes (00:00-wake time) and evening bedtimes
+    return bedMinutes != wakeMinutes;
   }
 
   /// All must be selected and valid before enabling Continue on page 1.
@@ -107,7 +109,7 @@ class _OnboardingFlowScreenState extends ConsumerState<OnboardingFlowScreen> {
       return;
     }
     if (!_isBedAfterWake) {
-      _showSnack('Bedtime must be after wake time');
+      _showSnack('Bedtime cannot be the same as wake time');
       return;
     }
 
