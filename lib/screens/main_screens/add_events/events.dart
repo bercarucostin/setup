@@ -2,7 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:Watt/features/auth/providers/providers.dart'; // firebaseAuthProvider
+import 'package:Watt/features/auth/providers/providers.dart';
 import 'package:Watt/features/energy/models/event.dart';
 import 'package:Watt/features/energy/providers/energy_providers.dart';
 import 'package:Watt/features/energy/providers/event_providers.dart';
@@ -35,7 +35,6 @@ class _AddEventsScreenState extends ConsumerState<AddEventsScreen>
     super.dispose();
   }
 
-  // ====== Helpers ===========================================================
   double _durationHours(TimeOfDay start, TimeOfDay end) {
     final s = start.hour + start.minute / 60.0;
     final e = end.hour + end.minute / 60.0;
@@ -67,7 +66,7 @@ class _AddEventsScreenState extends ConsumerState<AddEventsScreen>
   Future<_TimeConfig?> _pickTimeConfig() async {
     final now = DateTime.now();
     TimeOfDay startTime = TimeOfDay(hour: now.hour, minute: 0);
-    double intensity = 3; // 1-5 range, baseline in the middle
+    double intensity = 3;
 
     return showModalBottomSheet<_TimeConfig?>(
       context: context,
@@ -147,8 +146,6 @@ class _AddEventsScreenState extends ConsumerState<AddEventsScreen>
                     ),
                   ),
                   const Divider(height: 1),
-
-                  // --- Intensity slider (styled like your screenshot) ---
                   SizedBox(
                     height: 130,
                     child: Padding(
@@ -170,7 +167,7 @@ class _AddEventsScreenState extends ConsumerState<AddEventsScreen>
                               trackHeight: 4,
                               activeTrackColor: const Color(0xFFE5E7EB),
                               inactiveTrackColor: const Color(0xFFE5E7EB),
-                              thumbColor: const Color(0xFF6D4BCB), // purple
+                              thumbColor: const Color(0xFF6D4BCB),
                               overlayShape: SliderComponentShape.noOverlay,
                               tickMarkShape: SliderTickMarkShape.noTickMark,
                               thumbShape: const RoundSliderThumbShape(
@@ -182,7 +179,7 @@ class _AddEventsScreenState extends ConsumerState<AddEventsScreen>
                               value: intensity,
                               min: 1,
                               max: 5,
-                              divisions: 2, // snaps to 1, 3, 5 only
+                              divisions: 2,
                               onChanged: (val) {
                                 setState(() => intensity = val);
                               },
@@ -234,7 +231,6 @@ class _AddEventsScreenState extends ConsumerState<AddEventsScreen>
                       ),
                     ),
                   ),
-
                   const SizedBox(height: 12),
                 ],
               );
@@ -251,7 +247,6 @@ class _AddEventsScreenState extends ConsumerState<AddEventsScreen>
 
     setState(() => _saving = true);
     try {
-      // Fetch user profile to get wake/bed hours for dateWokeUp calculation
       final profile = await ref.read(userProfileStreamProvider(uid).future);
       if (profile == null) {
         _snack(context, 'User profile not found');
@@ -273,14 +268,13 @@ class _AddEventsScreenState extends ConsumerState<AddEventsScreen>
         today: today,
         template: ev,
         startHour: config.startTime.hour,
+        startMinute: config.startTime.minute,
         intensity: config.intensity.toDouble(),
       );
 
       if (!mounted) return;
-
-      // No invalidate needed: History uses a stream.
-      // ✅ force Insights to recompute
       ref.invalidate(energyInsightsProvider);
+      ref.invalidate(todayEventsProvider(uid));
     } catch (e) {
       _snack(context, 'Failed to add event: $e');
     } finally {
@@ -288,7 +282,6 @@ class _AddEventsScreenState extends ConsumerState<AddEventsScreen>
     }
   }
 
-  // ====== UI ================================================================
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(firebaseAuthProvider).currentUser;
@@ -297,19 +290,16 @@ class _AddEventsScreenState extends ConsumerState<AddEventsScreen>
     }
 
     final defaultEvents = ref.watch(defaultEventsProvider);
-    // print(defaultEvents);
-    // final icon = Icons.sports; // IconData
-    // print('decimal: ${icon.codePoint}');
 
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
       appBar: AppBar(
         elevation: 0,
-        scrolledUnderElevation: 0, // ✅ stops the scroll highlight
-        backgroundColor: Colors.transparent, // or your bg color
-        surfaceTintColor: Colors.transparent, // ✅ stops M3 tint
+        scrolledUnderElevation: 0,
+        backgroundColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
         shadowColor: Colors.transparent,
-        forceMaterialTransparency: true, // ✅ keeps it truly transparent
+        forceMaterialTransparency: true,
         centerTitle: true,
         title: _HeaderTabs(
           index: _tabIndex,
@@ -399,7 +389,6 @@ class _AddEventsScreenState extends ConsumerState<AddEventsScreen>
   }
 }
 
-// ============ Header tabs ====================================================
 class _HeaderTabs extends StatelessWidget {
   final int index;
   final ValueChanged<int> onChanged;
@@ -527,7 +516,6 @@ class _HeaderTabs extends StatelessWidget {
   }
 }
 
-// ========================= Card (Add tab) ===================================
 class _EventCard extends StatelessWidget {
   final Event event;
   final VoidCallback? onTap;
@@ -574,7 +562,6 @@ class _EventCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // ignore: unused_local_variable
     final (effectText, effectFg, effectBg) = _effectPill(event.initialEffect);
 
     return AnimatedBuilder(
@@ -651,30 +638,6 @@ class _EventCard extends StatelessWidget {
                         ),
                       ),
                     ),
-                    // const SizedBox(height: 8),
-                    // Align(
-                    //   alignment: Alignment.bottomLeft,
-                    //   child: Container(
-                    //     padding: const EdgeInsets.symmetric(
-                    //       horizontal: 10,
-                    //       vertical: 6,
-                    //     ),
-                    //     decoration: BoxDecoration(
-                    //       color: effectBg,
-                    //       borderRadius: BorderRadius.circular(999),
-                    //     ),
-                    //     child: Text(
-                    //       effectText,
-                    //       maxLines: 1,
-                    //       overflow: TextOverflow.ellipsis,
-                    //       style: TextStyle(
-                    //         color: effectFg,
-                    //         fontWeight: FontWeight.w700,
-                    //         fontSize: 12,
-                    //       ),
-                    //     ),
-                    //   ),
-                    // ),
                   ],
                 ),
               ),
@@ -769,7 +732,6 @@ class _IconTile extends StatelessWidget {
   }
 }
 
-// ==================== Misc helpers =========================================
 IconData _iconForEventName(String name) {
   final n = name.toLowerCase();
   if (n.contains('coffee') || n.contains('cafe')) {
@@ -796,7 +758,6 @@ IconData _iconForEventName(String name) {
   return Icons.blur_circular_rounded;
 }
 
-// ================= Bottom Sheet bits =======================================
 class _CupertinoTimePickerColumn extends StatelessWidget {
   final String label;
   final TimeOfDay initial;
@@ -864,6 +825,6 @@ class _CupertinoSheet extends StatelessWidget {
 
 class _TimeConfig {
   final TimeOfDay startTime;
-  final double intensity; // 1-5
+  final double intensity;
   const _TimeConfig({required this.startTime, required this.intensity});
 }

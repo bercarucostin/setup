@@ -11,14 +11,14 @@ class HistoryTabBody extends ConsumerWidget {
   final String userId;
   const HistoryTabBody({super.key, required this.userId});
 
-  String _hhmm(double h) {
-    final hh = h.floor();
-    final mm = ((h - hh) * 60).round();
+  String _hhmm(int? hour, int? minute) {
+    final hh = hour ?? 0;
+    final mm = minute ?? 0;
     return '${(hh % 24).toString().padLeft(2, '0')}:${(mm % 60).toString().padLeft(2, '0')}';
   }
 
   String _intensityLabel(double? value) {
-    final raw = (value ?? 3.0).round(); // 3 = baseline
+    final raw = (value ?? 3.0).round();
     final v = raw < 1 ? 1 : (raw > 5 ? 5 : raw);
 
     if (v <= 2) return 'Light';
@@ -29,31 +29,33 @@ class HistoryTabBody extends ConsumerWidget {
   Future<void> _deleteEvent(
     WidgetRef ref, {
     required String userId,
-    required String eventId,
+    required Event event,
+    required int wakeHour,
+    required int bedHour,
   }) async {
-    final profile = await ref.read(userProfileStreamProvider(userId).future);
-    if (profile == null) return;
+    final eventId = event.id;
+    if (eventId == null) return;
 
-    final wakeHour = profile['wakeHour'] as int?;
-    final bedHour = profile['bedHour'] as int?;
-    if (wakeHour == null || bedHour == null) return;
-
-    final today = dateWokeUp(wakeHour, bedHour);
+    final logicalDay =
+        _logicalCardDayFromCreatedAt(event) ?? dateWokeUp(wakeHour, bedHour);
 
     final repo = ref.read(eventRepositoryProvider);
     await repo.deleteEvent(
       userId: userId,
       eventId: eventId,
-      epochDay: customDateString(today),
+      epochDay: customDateString(logicalDay),
     );
+
     ref.invalidate(energyInsightsProvider);
+    ref.invalidate(todayEventsProvider(userId));
   }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final todayAsync = ref.watch(todayEventsProvider(userId));
+    final eventsAsync = ref.watch(todayEventsProvider(userId));
+    final profileAsync = ref.watch(userProfileStreamProvider(userId));
 
-    return todayAsync.when(
+    return profileAsync.when(
       loading: () => const Center(
         child: SizedBox(
           width: 24,
@@ -63,97 +65,274 @@ class HistoryTabBody extends ConsumerWidget {
       ),
       error: (e, _) =>
           Padding(padding: const EdgeInsets.all(16), child: Text('$e')),
-      data: (events) {
-        if (events.isEmpty) {
-          return const Center(child: Text('No events added yet.'));
-        }
+      data: (profile) {
+        final wakeHour = profile?['wakeHour'] as int? ?? 0;
+        final bedHour = profile?['bedHour'] as int? ?? 0;
 
-        // Sort by createdAt (newest first), nulls last
-        final sorted = [...events]
-          ..sort((a, b) {
-            final aDate = a.createdAtDate?.toLocal();
-            final bDate = b.createdAtDate?.toLocal();
-
-            if (aDate == null && bDate == null) {
-              return (a.startHour ?? 0).compareTo(b.startHour ?? 0);
-            }
-            if (aDate == null) return 1; // nulls last
-            if (bDate == null) return -1;
-
-            final byCreated = bDate.compareTo(aDate); // newest first
-            if (byCreated != 0) return byCreated;
-
-            // Tie-breaker
-            return (a.startHour ?? 0).compareTo(b.startHour ?? 0);
-          });
-
-        // Group by createdAt calendar day
-        final grouped = <DateTime?, List<Event>>{};
-        for (final ev in sorted) {
-          final dt = ev.createdAtDate?.toLocal();
-          final dayKey = dt == null
-              ? null
-              : DateTime(dt.year, dt.month, dt.day);
-          grouped.putIfAbsent(dayKey, () => []).add(ev);
-        }
-
-        // Sort group keys (newest day first, null last)
-        final dayKeys = grouped.keys.toList()
-          ..sort((a, b) {
-            if (a == null && b == null) return 0;
-            if (a == null) return 1;
-            if (b == null) return -1;
-            return b.compareTo(a); // newest day first
-          });
-
-        return Column(
-          children: [
-            Expanded(
-              child: ListView.separated(
-                padding: const EdgeInsets.fromLTRB(14, 12, 14, 18),
-                itemCount: dayKeys.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 10),
-                itemBuilder: (context, i) {
-                  final day = dayKeys[i];
-                  final dayEvents = grouped[day]!;
-
-                  return _HistoryDayCard(
-                    day: day,
-                    events: dayEvents,
-                    hhmm: _hhmm,
-                    intensityLabel: _intensityLabel,
-                    onDeleteEvent: (eventId) async {
-                      await _deleteEvent(ref, userId: userId, eventId: eventId);
-                    },
-                  );
-                },
-              ),
+        return eventsAsync.when(
+          loading: () => const Center(
+            child: SizedBox(
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(strokeWidth: 2),
             ),
-            Divider(color: Colors.grey.shade300, thickness: 1, height: 1),
-          ],
+          ),
+          error: (e, _) =>
+              Padding(padding: const EdgeInsets.all(16), child: Text('$e')),
+          data: (events) {
+            if (events.isEmpty) {
+              return const Center(child: Text('No events added yet.'));
+            }
+
+            final sections = _buildTimelineSections(events, wakeHour);
+
+            return Column(
+              children: [
+                Expanded(
+                  child: CustomScrollView(
+                    slivers: [
+                      const SliverToBoxAdapter(child: SizedBox(height: 12)),
+
+                      for (final section in sections) ...[
+                        SliverToBoxAdapter(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 14),
+                            child: _TimelineHeaderCard(
+                              eventCount: section.totalEvents,
+                            ),
+                          ),
+                        ),
+
+                        const SliverToBoxAdapter(child: SizedBox(height: 8)),
+
+                        for (final daySection in section.actualDaySections) ...[
+                          SliverPersistentHeader(
+                            pinned: true,
+                            delegate: _ActualDayHeaderDelegate(
+                              day: daySection.actualDay,
+                            ),
+                          ),
+
+                          SliverPadding(
+                            padding: const EdgeInsets.fromLTRB(22, 0, 22, 8),
+                            sliver: SliverList(
+                              delegate: SliverChildBuilderDelegate(
+                                (context, index) {
+                                  if (index.isOdd) {
+                                    return Divider(
+                                      height: 1,
+                                      thickness: 1,
+                                      color: Colors.grey.shade100,
+                                      indent: 56,
+                                      endIndent: 8,
+                                    );
+                                  }
+
+                                  final event = daySection.events[index ~/ 2];
+
+                                  return _HistoryRow(
+                                    title: event.name,
+                                    start: _hhmm(
+                                      event.startHour,
+                                      event.startMinute,
+                                    ),
+                                    intensity: _intensityLabel(event.intensity),
+                                    isBoost: event.booster,
+                                    iconSpec: event.icon,
+                                    onDelete: event.id == null
+                                        ? null
+                                        : () => _deleteEvent(
+                                            ref,
+                                            userId: userId,
+                                            event: event,
+                                            wakeHour: wakeHour,
+                                            bedHour: bedHour,
+                                          ),
+                                  );
+                                },
+                                childCount: daySection.events.isEmpty
+                                    ? 0
+                                    : daySection.events.length * 2 - 1,
+                              ),
+                            ),
+                          ),
+                        ],
+
+                        const SliverToBoxAdapter(child: SizedBox(height: 12)),
+                      ],
+                    ],
+                  ),
+                ),
+                Divider(color: Colors.grey.shade300, thickness: 1, height: 1),
+              ],
+            );
+          },
         );
       },
     );
   }
 }
 
-class _HistoryHeader extends StatelessWidget {
-  final int eventCount;
-  final DateTime? displayDate;
+class _ActualDaySection {
+  final DateTime? actualDay;
+  final List<Event> events;
 
-  const _HistoryHeader({required this.eventCount, this.displayDate});
+  const _ActualDaySection({required this.actualDay, required this.events});
+}
+
+class _TimelineSection {
+  final DateTime? logicalDay;
+  final List<_ActualDaySection> actualDaySections;
+
+  const _TimelineSection({
+    required this.logicalDay,
+    required this.actualDaySections,
+  });
+
+  int get totalEvents =>
+      actualDaySections.fold(0, (sum, s) => sum + s.events.length);
+}
+
+List<_TimelineSection> _buildTimelineSections(
+  List<Event> events,
+  int wakeHour,
+) {
+  final grouped = <DateTime?, List<Event>>{};
+
+  for (final ev in events) {
+    final logicalDay = _logicalCardDayFromCreatedAt(ev);
+    grouped.putIfAbsent(logicalDay, () => []).add(ev);
+  }
+
+  final logicalDays = grouped.keys.toList()
+    ..sort((a, b) {
+      if (a == null && b == null) return 0;
+      if (a == null) return 1;
+      if (b == null) return -1;
+      return b.compareTo(a);
+    });
+
+  final result = <_TimelineSection>[];
+
+  for (final logicalDay in logicalDays) {
+    final rows = [...grouped[logicalDay]!]
+      ..sort((a, b) {
+        final byTimeline = _timelineSortValueForEvent(
+          a,
+          wakeHour,
+        ).compareTo(_timelineSortValueForEvent(b, wakeHour));
+
+        if (byTimeline != 0) return byTimeline;
+        return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+      });
+
+    final actualSections = <_ActualDaySection>[];
+    DateTime? currentDay;
+    List<Event> bucket = [];
+
+    for (final ev in rows) {
+      final actualDay = _actualDisplayDayForEvent(
+        logicalDay: logicalDay,
+        event: ev,
+        wakeHour: wakeHour,
+      );
+
+      if (!_sameCalendarDay(currentDay, actualDay)) {
+        if (bucket.isNotEmpty) {
+          actualSections.add(
+            _ActualDaySection(
+              actualDay: currentDay,
+              events: List.unmodifiable(bucket),
+            ),
+          );
+        }
+        currentDay = actualDay;
+        bucket = [ev];
+      } else {
+        bucket.add(ev);
+      }
+    }
+
+    if (bucket.isNotEmpty) {
+      actualSections.add(
+        _ActualDaySection(
+          actualDay: currentDay,
+          events: List.unmodifiable(bucket),
+        ),
+      );
+    }
+
+    result.add(
+      _TimelineSection(
+        logicalDay: logicalDay,
+        actualDaySections: actualSections,
+      ),
+    );
+  }
+
+  return result;
+}
+
+DateTime? _stripDay(DateTime? dt) {
+  if (dt == null) return null;
+  return DateTime(dt.year, dt.month, dt.day);
+}
+
+DateTime? _logicalCardDayFromCreatedAt(Event event) {
+  return _stripDay(event.createdAtDate?.toLocal());
+}
+
+int _eventTotalMinutes(Event event) {
+  final hour = event.startHour ?? 0;
+  final minute = event.startMinute ?? 0;
+  return hour * 60 + minute;
+}
+
+int _wakeTotalMinutes(int wakeHour) => wakeHour * 60;
+
+int _timelineSortValueForEvent(Event event, int wakeHour) {
+  final total = _eventTotalMinutes(event);
+  final wakeTotal = _wakeTotalMinutes(wakeHour);
+  return total < wakeTotal ? total + 1440 : total;
+}
+
+DateTime? _actualDisplayDayForEvent({
+  required DateTime? logicalDay,
+  required Event event,
+  required int wakeHour,
+}) {
+  if (logicalDay == null) return null;
+
+  final total = _eventTotalMinutes(event);
+  final wakeTotal = _wakeTotalMinutes(wakeHour);
+
+  if (total < wakeTotal) {
+    return logicalDay.add(const Duration(days: 1));
+  }
+  return logicalDay;
+}
+
+bool _sameCalendarDay(DateTime? a, DateTime? b) {
+  if (a == null && b == null) return true;
+  if (a == null || b == null) return false;
+  return a.year == b.year && a.month == b.month && a.day == b.day;
+}
+
+class _TimelineHeaderCard extends StatelessWidget {
+  final int eventCount;
+
+  const _TimelineHeaderCard({required this.eventCount});
 
   @override
   Widget build(BuildContext context) {
     final muted = Colors.blueGrey.shade600;
-    final date = displayDate ?? DateTime.now();
-    final dateLabel = DateFormat('EEE, MMM d').format(date); // Mon, Feb 22
 
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: const Color(0xFFE5E7EB)),
+        color: Colors.white,
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -179,33 +358,17 @@ class _HistoryHeader extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 10),
-
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Today · $dateLabel',
-                  style: TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.2,
-                    color: muted,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  'Events timeline',
-                  style: TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.grey.shade500,
-                  ),
-                ),
-              ],
+            child: Text(
+              'Events timeline',
+              style: TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.2,
+                color: muted,
+              ),
             ),
           ),
-
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
             decoration: BoxDecoration(
@@ -235,10 +398,101 @@ class _HistoryHeader extends StatelessWidget {
   }
 }
 
+class _ActualDayHeaderDelegate extends SliverPersistentHeaderDelegate {
+  final DateTime? day;
+
+  const _ActualDayHeaderDelegate({required this.day});
+
+  @override
+  double get minExtent => 42;
+
+  @override
+  double get maxExtent => 42;
+
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
+    final muted = Colors.blueGrey.shade600;
+    final dateLabel = day == null
+        ? 'Unknown date'
+        : DateFormat('EEE, MMM d').format(day!);
+
+    return SizedBox.expand(
+      child: ColoredBox(
+        color: Theme.of(context).colorScheme.surface,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(22, 2, 22, 2),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFE5E7EB)),
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFFFFFFFF), Color(0xFFF8FAFC)],
+              ),
+              boxShadow: overlapsContent
+                  ? const [
+                      BoxShadow(
+                        blurRadius: 8,
+                        offset: Offset(0, 2),
+                        color: Color(0x06000000),
+                      ),
+                    ]
+                  : const [],
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 22,
+                  height: 22,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: const Color(0xFFEDE9FE),
+                    border: Border.all(color: const Color(0xFFDDD6FE)),
+                  ),
+                  child: const Center(
+                    child: Icon(
+                      Icons.calendar_today_rounded,
+                      size: 11,
+                      color: Color(0xFF6D4BCB),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    dateLabel,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.2,
+                      color: muted,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  bool shouldRebuild(covariant _ActualDayHeaderDelegate oldDelegate) {
+    return oldDelegate.day != day;
+  }
+}
+
 class _HistoryRow extends StatelessWidget {
   final String title;
   final String start;
-  final String intensity; // Light / Moderate / Strong
+  final String intensity;
   final bool isBoost;
   final IconSpec? iconSpec;
   final VoidCallback? onDelete;
@@ -255,29 +509,14 @@ class _HistoryRow extends StatelessWidget {
   Color get _accent =>
       isBoost ? const Color(0xFF3F51D1) : const Color(0xFFF05A28);
 
-  double _segmentWidth(String label) {
-    switch (label.toLowerCase()) {
-      case 'light':
-        return 24;
-      case 'moderate':
-        return 38;
-      case 'strong':
-        return 54;
-      default:
-        return 38;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final iconData = iconSpec?.toIconData() ?? _iconForEventName(title);
 
-    return Container(
+    return SizedBox(
       height: 64,
-      padding: const EdgeInsets.symmetric(horizontal: 2),
       child: Row(
         children: [
-          // Tighter time column (was too wide)
           SizedBox(
             width: 56,
             child: Text(
@@ -290,8 +529,6 @@ class _HistoryRow extends StatelessWidget {
               ),
             ),
           ),
-
-          // Vertical accent bar (closer to time now)
           Container(
             width: 4,
             height: 46,
@@ -300,20 +537,14 @@ class _HistoryRow extends StatelessWidget {
               borderRadius: BorderRadius.circular(999),
             ),
           ),
-
           const SizedBox(width: 12),
-
-          // Event icon (same icon system)
           SizedBox(
             width: 28,
             child: Center(
               child: Icon(iconData, size: 23, color: Colors.black87),
             ),
           ),
-
           const SizedBox(width: 10),
-
-          // Title
           Expanded(
             child: Text(
               title,
@@ -326,15 +557,9 @@ class _HistoryRow extends StatelessWidget {
               ),
             ),
           ),
-
           const SizedBox(width: 8),
-
-          // Intensity line
           _IntensityLabelPill(label: intensity),
-
           const SizedBox(width: 6),
-
-          // Delete icon (kept on the right)
           SizedBox(
             width: 34,
             height: 34,
@@ -343,7 +568,7 @@ class _HistoryRow extends StatelessWidget {
               tooltip: 'Delete',
               splashRadius: 18,
               padding: EdgeInsets.zero,
-              icon: Icon(
+              icon: const Icon(
                 Icons.delete_forever_rounded,
                 size: 18,
                 color: Colors.red,
@@ -425,7 +650,6 @@ _LabelColors _intensityLabelColors(String label) {
   }
 }
 
-// ==================== Misc helpers =========================================
 IconData _iconForEventName(String name) {
   final n = name.toLowerCase();
 
@@ -441,7 +665,9 @@ IconData _iconForEventName(String name) {
       n.contains('dinner')) {
     return Icons.restaurant_rounded;
   }
-  if (n.contains('nap') || n.contains('sleep')) return Icons.bedtime_rounded;
+  if (n.contains('nap') || n.contains('sleep')) {
+    return Icons.bedtime_rounded;
+  }
   if (n.contains('gym') ||
       n.contains('workout') ||
       n.contains('sport') ||
@@ -454,195 +680,4 @@ IconData _iconForEventName(String name) {
     return Icons.self_improvement_rounded;
   }
   return Icons.blur_circular_rounded;
-}
-
-class _HistoryDayCard extends StatelessWidget {
-  final DateTime? day;
-  final List<Event> events;
-  final String Function(double) hhmm;
-  final String Function(double?) intensityLabel;
-  final Future<void> Function(String eventId) onDeleteEvent;
-
-  const _HistoryDayCard({
-    required this.day,
-    required this.events,
-    required this.hhmm,
-    required this.intensityLabel,
-    required this.onDeleteEvent,
-  });
-
-  String _dayTitle(DateTime? d) {
-    if (d == null) return 'Unknown date';
-
-    final now = DateTime.now();
-    if (DateUtils.isSameDay(d, now)) {
-      return 'Today · ${DateFormat('EEE, MMM d').format(d)}';
-    }
-
-    final yesterday = now.subtract(const Duration(days: 1));
-    if (DateUtils.isSameDay(d, yesterday)) {
-      return 'Yesterday · ${DateFormat('EEE, MMM d').format(d)}';
-    }
-
-    return DateFormat('EEE, MMM d').format(d);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    // Inside each day-card, sort by timeline hour (nice for display)
-    final rows = [...events]
-      ..sort((a, b) {
-        final byHour = (a.startHour ?? 0).compareTo(b.startHour ?? 0);
-        if (byHour != 0) return byHour;
-
-        final aDate = a.createdAtDate;
-        final bDate = b.createdAtDate;
-        if (aDate == null && bDate == null) return 0;
-        if (aDate == null) return 1;
-        if (bDate == null) return -1;
-        return aDate.compareTo(bDate);
-      });
-
-    final muted = Colors.blueGrey.shade600;
-
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-        color: Colors.white,
-        boxShadow: const [
-          BoxShadow(
-            blurRadius: 10,
-            offset: Offset(0, 2),
-            color: Color(0x08000000),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          // Header (per day)
-          Container(
-            padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
-            decoration: const BoxDecoration(
-              borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [Color(0xFFFFFFFF), Color(0xFFF8FAFC)],
-              ),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 28,
-                  height: 28,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: const Color(0xFFEDE9FE),
-                    border: Border.all(color: const Color(0xFFDDD6FE)),
-                  ),
-                  child: const Center(
-                    child: Icon(
-                      Icons.bolt_rounded,
-                      size: 15,
-                      color: Color(0xFF6D4BCB),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _dayTitle(day),
-                        style: TextStyle(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.2,
-                          color: muted,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Events timeline',
-                        style: TextStyle(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.grey.shade500,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 7,
-                  ),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(999),
-                    color: Colors.white,
-                    border: Border.all(color: const Color(0xFFE5E7EB)),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.event,
-                        size: 14,
-                        color: Colors.blueGrey.shade500,
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        '${rows.length}',
-                        style: const TextStyle(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w800,
-                          color: Color(0xFF1F2937),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          Divider(color: Colors.grey.shade200, height: 1, thickness: 1),
-
-          // Rows
-          Padding(
-            padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
-            child: Column(
-              children: [
-                for (int i = 0; i < rows.length; i++) ...[
-                  _HistoryRow(
-                    title: rows[i].name,
-                    start: hhmm((rows[i].startHour ?? 0).toDouble()),
-                    intensity: intensityLabel(rows[i].intensity),
-                    isBoost: rows[i].booster == true,
-                    iconSpec: rows[i].icon,
-                    onDelete: rows[i].id == null
-                        ? null
-                        : () => onDeleteEvent(rows[i].id!),
-                  ),
-                  if (i != rows.length - 1)
-                    Divider(
-                      height: 1,
-                      thickness: 1,
-                      color: Colors.grey.shade100,
-                      indent: 56,
-                      endIndent: 8,
-                    ),
-                ],
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }

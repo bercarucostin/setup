@@ -4,12 +4,14 @@ import 'package:flutter/material.dart';
 
 class Event {
   final String? id;
+
   int? startHour;
+  int? startMinute;
   double? intensity;
+
   final String name;
   final String description;
-
-  final String? createdAt; // ✅ NEW
+  final String? createdAt;
 
   final double initialDuration;
   final double initialEffect;
@@ -24,6 +26,7 @@ class Event {
   Event({
     this.id,
     this.startHour,
+    this.startMinute,
     this.intensity,
     required this.name,
     required this.initialDuration,
@@ -34,25 +37,33 @@ class Event {
     required this.tailDecay,
     required this.booster,
     this.description = '',
-    this.createdAt, // ✅ NEW
+    this.createdAt,
     this.icon,
   });
+
+  static int? _asInt(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse(value.toString());
+  }
 
   factory Event.fromFirestore(Map<String, dynamic> data) {
     return Event(
       id: (data['id'] ?? data['docId']) as String?,
-      startHour: data['startHour'] ?? 0,
+      startHour: _asInt(data['startHour']) ?? 0,
+      startMinute: _asInt(data['startMinute']) ?? 0,
       intensity: (data['intensity'] as num?)?.toDouble() ?? 3.0,
       name: data['name'],
       initialDuration: (data['initialDuration'] as num).toDouble(),
-      initialEffect: data['initialEffect'].toDouble(),
-      initialDecay: data['initialDecay'].toDouble(),
+      initialEffect: (data['initialEffect'] as num).toDouble(),
+      initialDecay: (data['initialDecay'] as num).toDouble(),
       tailDuration: (data['tailDuration'] as num).toDouble(),
-      tailEffect: data['tailEffect'].toDouble(),
-      tailDecay: data['tailDecay'].toDouble(),
+      tailEffect: (data['tailEffect'] as num).toDouble(),
+      tailDecay: (data['tailDecay'] as num).toDouble(),
       booster: data['booster'] ?? false,
       description: data['description'] ?? '',
-      createdAt: data['createdAt'] as String?, // ✅ NEW
+      createdAt: data['createdAt'] as String?,
       icon: (data['icon'] is Map<String, dynamic>)
           ? IconSpec.fromFirestore(data['icon'] as Map<String, dynamic>)
           : null,
@@ -62,6 +73,7 @@ class Event {
   Map<String, dynamic> toFirestore() {
     return {
       'startHour': startHour,
+      'startMinute': startMinute,
       'intensity': intensity,
       'name': name,
       'initialDuration': initialDuration,
@@ -83,6 +95,7 @@ class Event {
         'name: $name, '
         'description: $description, '
         'startHour: $startHour, '
+        'startMinute: $startMinute, '
         'intensity: $intensity, '
         'createdAt: $createdAt, '
         'initialDuration: $initialDuration, '
@@ -96,18 +109,23 @@ class Event {
         ')';
   }
 
-  // Optional helper if you want DateTime usage in UI/sorting
   DateTime? get createdAtDate {
     final v = createdAt;
     if (v == null || v.isEmpty) return null;
     return DateTime.tryParse(v);
   }
 
+  int get safeStartHour => startHour ?? 0;
+  int get safeStartMinute => startMinute ?? 0;
+
+  int get startTotalMinutes => safeStartHour * 60 + safeStartMinute;
+
+  double get startTimeAsDouble => safeStartHour + safeStartMinute / 60.0;
+
   double get _scale {
-    // Centered scaling for UI slider 1..5, with 3 = baseline (1.0x)
     final i = intensity ?? 3.0;
     final clamped = i < 1.0 ? 1.0 : (i > 5.0 ? 5.0 : i);
-    return 1.0 + (clamped - 3.0) * 0.25; // 1->0.5x, 3->1.0x, 5->1.5x
+    return 1.0 + (clamped - 3.0) * 0.25;
   }
 
   double get _mainEffectDuration => initialDuration * _scale;
@@ -118,23 +136,16 @@ class Event {
   double get _tailDecay => max(tailDecay, 1e-9) / max(_scale, 1e-9);
 
   double applyEffect(int hour) {
-    // Null safety guards
     final sh = startHour;
     if (sh == null) return 0.0;
 
-    // hours since start, wrapped forward
-    final int t = (hour - sh) % 24; // 0..23
+    final int t = (hour - sh) % 24;
 
-    // length of the interval start->end
     final double totalDuration = _mainEffectDuration + _tailEffectDuration;
 
-    // No effect if zero duration
     if (totalDuration <= 0) return 0.0;
-
-    // If duration >= 24h, effect applies to all hours; otherwise check bounds
     if (totalDuration < 24 && t >= totalDuration) return 0.0;
 
-    // Main/tail boundary fix: half-open interval [0, mainDuration)
     if (t < _mainEffectDuration) {
       return _mainEffect * exp(-_mainDecay * t);
     } else {
@@ -146,13 +157,12 @@ class Event {
 
 class IconSpec {
   final int codePoint;
-  final String family; // e.g. 'MaterialIcons' or 'CupertinoIcons'
-  final String? package; // usually null unless you use a package font
+  final String family;
+  final String? package;
 
   const IconSpec({required this.codePoint, required this.family, this.package});
 
   factory IconSpec.fromFirestore(Map<String, dynamic> m) {
-    // cp can be int or hex string like "0xe541"
     final raw = m['cp'];
     int cp;
     if (raw is int) {
@@ -162,6 +172,7 @@ class IconSpec {
     } else {
       throw ArgumentError('icon.cp missing or invalid');
     }
+
     return IconSpec(
       codePoint: cp,
       family: (m['family'] as String?) ?? 'MaterialIcons',

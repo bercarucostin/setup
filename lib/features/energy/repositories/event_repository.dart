@@ -59,6 +59,7 @@ class EventRepository {
     required DateTime today,
     required Event template,
     required int startHour,
+    required int startMinute,
     required double intensity,
   }) async {
     // Build event payload from the template defaults + selected time
@@ -68,6 +69,7 @@ class EventRepository {
     data['name'] = template.name;
     data['startHour'] = startHour;
     data['intensity'] = intensity;
+    data['startMinute'] = startMinute;
     data['createdAt'] = nowTimestampString();
 
     await _firestoreRepo.saveUserEvent(
