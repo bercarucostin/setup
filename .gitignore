@@ -59,3 +59,5 @@ ios/fastlane/.env
 
 
 **/*.keystore
+
+**/*.kts

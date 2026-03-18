@@ -31,6 +31,14 @@
           }
         },
         {
+          "client_id": "753333991622-rpr197spgs9an1s6m12ak205j2149pte.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.trywatt.watt",
+            "certificate_hash": "57a1d9b71f8cd1fbb3e43bec429765648bc744de"
+          }
+        },
+        {
           "client_id": "753333991622-fhs2o2at65mnp8v1deia98kgrlhf507f.apps.googleusercontent.com",
           "client_type": 3
         }
