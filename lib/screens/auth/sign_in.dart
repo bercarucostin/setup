@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/svg.dart';
@@ -313,6 +314,9 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
   }
 
   Widget _buildThirdPartyButtons(WidgetRef ref, {bool enabled = true}) {
+    final bool showAppleSignIn =
+        defaultTargetPlatform != TargetPlatform.android;
+
     return Column(
       children: [
         SizedBox(
@@ -335,27 +339,29 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
             ),
           ),
         ),
-        const SizedBox(height: 8),
-        SizedBox(
-          width: 240,
-          child: ElevatedButton.icon(
-            onPressed: enabled
-                ? () => ref
-                      .read(authControllerProvider.notifier)
-                      .signInWithApple()
-                : null,
-            icon: const FaIcon(FontAwesomeIcons.apple),
-            label: const Text('Continue with Apple'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.black,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+        if (showAppleSignIn) ...[
+          const SizedBox(height: 8),
+          SizedBox(
+            width: 240,
+            child: ElevatedButton.icon(
+              onPressed: enabled
+                  ? () => ref
+                        .read(authControllerProvider.notifier)
+                        .signInWithApple()
+                  : null,
+              icon: const FaIcon(FontAwesomeIcons.apple),
+              label: const Text('Continue with Apple'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.black,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                padding: const EdgeInsets.symmetric(vertical: 12),
               ),
-              padding: const EdgeInsets.symmetric(vertical: 12),
             ),
           ),
-        ),
+        ],
       ],
     );
   }
